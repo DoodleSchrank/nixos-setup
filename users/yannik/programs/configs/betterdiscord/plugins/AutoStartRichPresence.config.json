@@ -1,0 +1,10 @@
+{
+    "settings": {
+        "lastChangelogVersionSeen": "2.0.4"
+    },
+    "profiles": [
+        {
+            "name": "New Profile"
+        }
+    ]
+}
