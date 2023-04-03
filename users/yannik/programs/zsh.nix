@@ -8,7 +8,7 @@
       vim = "nvim";
       recompile = "sudo nixos-rebuild switch";
       conf = "cd /etc/nixos/";
-      rm = "trash-cli put";
+      rm = "trash";
       mkdir = "mkdir -p";
       cd = "take";
     };

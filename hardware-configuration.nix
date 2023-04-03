@@ -57,5 +57,6 @@
   hardware.nvidia.modesetting.enable = true;
   hardware.nvidia.forceFullCompositionPipeline = true;
 
-  
+  # steam shibizzles
+  hardware.opengl.driSupport32Bit = true;
 }

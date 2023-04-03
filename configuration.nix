@@ -23,8 +23,10 @@
     useXkbConfig = true; # use xkbOptions in tty.
   };
 
-  #fuck nvidia
+  # fuck nvidia
   nixpkgs.config.allowUnfree = true;
+  # flakes
+  # nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   environment = {
     pathsToLink = [ "/libexec" ];
@@ -38,6 +40,7 @@
      zsh alacritty
      xclip maim
      trash-cli
+     nvidia-vaapi-driver
   ];
   services.jellyfin.enable = true;
 
