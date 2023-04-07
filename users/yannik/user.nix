@@ -1,11 +1,13 @@
 { pkgs, config, lib, stdenv, ... }:
-  {
+let
+  unstable = import <nixos-unstable> { config = { allowUnfree = true; }; };
+in {
     home.username = "yannik";
     home.stateVersion = "22.11";
 
     nixpkgs.config.allowUnfree = true;
     home.packages = with pkgs; [
-      discord element-desktop parsec-bin thunderbird betterdiscordctl zoom-us
+      discord element-desktop unstable.parsec-bin thunderbird betterdiscordctl zoom-us unstable.teams-for-linux
 
       steam lutris yuzu-mainline vulkan-tools
       #inputs.nix-gaming.packages.${pkgs.hostPlatform.system}.wine-tkg
@@ -22,13 +24,26 @@
       alejandra
 
       bpytop htop hddtemp linuxKernel.packages.linux_xanmod_stable.cpupower
+      nix-output-monitor pavucontrol
 
-      redshift mcron ranger trash-cli
+      redshift mcron ranger trash-cli dig
       chroma # syntax highlighter needed for zsh stuff
     ];
     programs.home-manager.enable = true;
+    #programs.thunderbird.enable = true;
+    programs.chromium.enable = true;
+    services = {
+      network-manager-applet.enable = true;
+      udiskie = {
+        enable = true;
+        tray = "auto";
+        automount = true;
+        notify = false;
+      };
+    };
 
     imports = [
+      #<sops-nix/modules/home-manager/sops.nix>
       ./programs/redshift.nix
       ./programs/zsh.nix
       ./programs/i3.nix

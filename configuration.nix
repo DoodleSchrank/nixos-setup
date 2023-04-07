@@ -26,7 +26,7 @@
   # fuck nvidia
   nixpkgs.config.allowUnfree = true;
   # flakes
-  # nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  #nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   environment = {
     pathsToLink = [ "/libexec" ];
@@ -36,7 +36,7 @@
   environment.systemPackages = with pkgs; [
      vim neovim
      wget curl gitFull
-     chromium
+     chromium firefox
      zsh alacritty
      xclip maim
      trash-cli
@@ -61,6 +61,9 @@
     noto-fonts noto-fonts-cjk noto-fonts-emoji dejavu_fonts
   ];
 
+  networking.extraHosts = ''
+    127.0.0.1 localhost
+  '';
   networking.firewall.allowedTCPPorts = [ 445 139 ];
   networking.firewall.allowedUDPPorts = [ 137 138 ];
   networking.firewall.enable = true;

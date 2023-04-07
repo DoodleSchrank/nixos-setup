@@ -4,7 +4,7 @@
     settings = {
       window.decorations = "none";
       window.dynamic_title = true;
-      window.decorations_theme_variant = "dark";
+      window.decorations_theme_variant = "Dark";
 
       font.normal.family = "DejaVu Sans Mono";
       font.size = 10.0;

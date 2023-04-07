@@ -87,7 +87,7 @@
         comment = "Home Directories";
         browseable = "yes";
         writable = "yes";
-        "valid users" = "yannik";
+        "valid users" = "%S";
         "guest ok" = "no";
       };
     };
