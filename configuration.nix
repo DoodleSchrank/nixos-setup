@@ -8,12 +8,6 @@
       <home-manager/nixos>
     ];
 
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  networking.hostName = "yannik-pc"; # Define your hostname.
-  networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
-
   time.timeZone = "Europe/Amsterdam";
 
   i18n.defaultLocale = "en_US.UTF-8";
@@ -30,24 +24,30 @@
 
   environment = {
     pathsToLink = [ "/libexec" ];
+    systemPackages = with pkgs; [
+      vim neovim
+      wget curl gitFull
+      chromium firefox
+      zsh alacritty
+      xclip maim
+      trash-cli
+      nvidia-vaapi-driver jellyfin-ffmpeg
+      nix-diff
+    ];
   };
-
-
-  environment.systemPackages = with pkgs; [
-     vim neovim
-     wget curl gitFull
-     chromium firefox
-     zsh alacritty
-     xclip maim
-     trash-cli
-     nvidia-vaapi-driver
-  ];
   services.jellyfin.enable = true;
+  # flatpak shibizzles
+  services.flatpak.enable = true;
+  xdg.portal.enable = true;
+  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 
 
   programs.zsh.enable = true;
+  programs.neovim.enable = true;
+  programs.neovim.defaultEditor = true;
   users.defaultUserShell = pkgs.zsh;
   security.sudo.wheelNeedsPassword = false;
+  environment.localBinInPath = true;
 
   users.users.yannik = {
      isNormalUser = true;
@@ -60,14 +60,6 @@
   fonts.fonts = with pkgs; [
     noto-fonts noto-fonts-cjk noto-fonts-emoji dejavu_fonts
   ];
-
-  networking.extraHosts = ''
-    127.0.0.1 localhost
-  '';
-  networking.firewall.allowedTCPPorts = [ 445 139 ];
-  networking.firewall.allowedUDPPorts = [ 137 138 ];
-  networking.firewall.enable = true;
-  networking.firewall.allowPing = true;
   services.jellyfin.openFirewall = true;
 
   # Copy the NixOS configuration file and link it from the resulting system
