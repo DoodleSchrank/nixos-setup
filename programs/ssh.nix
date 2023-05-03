@@ -4,8 +4,10 @@
     openFirewall = true;
     ports = [ 25560 ];
     startWhenNeeded = true;
-    passwordAuthentication = false;
-    kbdInteractiveAuthentication = false;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+    };
   };
   users.users."yannik".openssh.authorizedKeys.keyFiles = [
     ./configs/ssh/authorized_keys

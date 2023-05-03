@@ -6,11 +6,12 @@
     shellAliases = {
       la = "ls -lah";
       vim = "nvim";
-      recompile = "sudo nixos-rebuild switch";
+      rebuild = "sudo nixos-rebuild switch --flake '/etc/nixos#heimrechner' |& sudo nom";
       conf = "cd /etc/nixos/";
       rm = "trash";
       mkdir = "mkdir -p";
-      cd = "take";
+      cd = "take"; # from zsh
+      fuck = "thefuck";
     };
     oh-my-zsh = {
       enable = true;

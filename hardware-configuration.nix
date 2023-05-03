@@ -8,8 +8,8 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "sd_mod" ];
-  boot.initrd.kernelModules = [ "dm-snapshot" ];
+  boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "mpt3sas" "nvme" "usbhid" "sd_mod" "aesni_intel" "cryptd"];
+  boot.initrd.kernelModules = [ "dm-snapshot" "usb_storage" ];
   boot.kernelPackages = pkgs.linuxPackages_xanmod;
   boot.kernelModules = [ "kvm-intel" ];
   boot.kernel.sysctl = {
@@ -17,7 +17,13 @@
   };
   boot.extraModulePackages = [ ];
 
-  boot.initrd.luks.devices."cryptroot".device = "/dev/disk/by-uuid/118abaea-ad74-40f4-a0e2-58a8080b9cb4";
+  boot.initrd.luks.devices."cryptroot" = {
+    device = "/dev/disk/by-uuid/118abaea-ad74-40f4-a0e2-58a8080b9cb4";
+    #https://nixos.wiki/wiki/Full_Disk_Encryption for some future day :(
+    #allowDiscards = true;
+    #keyFileSize = 4096;
+    #keyFile = "/dev/sdf";
+  };
 
 
   fileSystems."/" =

@@ -1,7 +1,7 @@
 {
   programs.chromium.enable = true;
   programs.chromium.extensions = [
-    "dmghijelimhndkbmpgbldicpogfkceaj" # darkmode
+    "eimadpbcbfnmbkopoojfekhnkhdbieeh" # better darkmode
     "cahpmepdjiejandeladmhfpapeagobnp" # advanced image search
     "nngceckbapebfimnlniiiahkandclblb" # bitwarden
     "aapbdbdomjkkjkaonfhkkikfgjllcleb" # translate

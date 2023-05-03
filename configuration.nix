@@ -5,7 +5,7 @@
     [
       ./hardware-configuration.nix
       ./programs/programs.nix
-      <home-manager/nixos>
+      #<home-manager/nixos>
     ];
 
   time.timeZone = "Europe/Amsterdam";
@@ -20,7 +20,7 @@
   # fuck nvidia
   nixpkgs.config.allowUnfree = true;
   # flakes
-  #nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   environment = {
     pathsToLink = [ "/libexec" ];
@@ -65,7 +65,7 @@
   # Copy the NixOS configuration file and link it from the resulting system
   # (/run/current-system/configuration.nix). This is useful in case you
   # accidentally delete configuration.nix.
-  system.copySystemConfiguration = true;
+  #system.copySystemConfiguration = true;
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
