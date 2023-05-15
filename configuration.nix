@@ -42,16 +42,19 @@
   xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
 
 
-  programs.zsh.enable = true;
-  programs.neovim.enable = true;
-  programs.neovim.defaultEditor = true;
+  programs = {
+    zsh.enable = true;
+    adb.enable = true;
+    neovim.enable = true;
+    neovim.defaultEditor = true;
+  };
   users.defaultUserShell = pkgs.zsh;
   security.sudo.wheelNeedsPassword = false;
   environment.localBinInPath = true;
 
   users.users.yannik = {
      isNormalUser = true;
-     extraGroups = [ "wheel" ];
+     extraGroups = [ "wheel" "adbusers" ];
   };
   home-manager.users.yannik = { pkgs, ...}: {
     programs.zsh.enable = true;

@@ -19,5 +19,6 @@
     "pkehgijcmpdhfbdbbnkijodmdjhbjlgp" # privacy badger c:
     "ogfcmafjalglgifnmanfmnieipoejdcf" # umatrix
     "gbobdaaeaihkghbokihkofcbndhmbdpd" # unshorten link
+    "dbepggeogbaibhgnhhndojpepiihcmeb" # vimium
   ];
 }
