@@ -16,7 +16,7 @@
       '';
     displayManager = {
       defaultSession = "none+i3";
-      setupCommands = "${pkgs.xorg.xrandr}/bin/xrandr --output DP-4 --mode 2560x1440 --rate 75.0 --left-of DP-2 --mode 2560x1440 --rate 144.0";
+      setupCommands = "${pkgs.xorg.xrandr}/bin/xrandr --output DP-4 --mode 2560x1440 --rate 75.0 --left-of DP-2 --primary --mode 2560x1440 --rate 144.0";
       autoLogin = {
         enable = true;
         user = "yannik";
@@ -29,5 +29,12 @@
         i3status
       ];
     };
+    libinput = {
+      enable = true;
+      mouse = {
+        middleEmulation = false;
+      };
+    };
+    exportConfiguration = true;
   };
 }

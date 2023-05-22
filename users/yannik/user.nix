@@ -1,7 +1,7 @@
 { pkgs, config, lib, stdenv, environment, ... }:
  {
     home.username = "yannik";
-    home.stateVersion = "22.11";
+    home.stateVersion = "23.05";
 
     nixpkgs.config.allowUnfree = true;
     home.packages = with pkgs; [
@@ -9,6 +9,7 @@
 
       steam lutris yuzu-mainline vulkan-tools prismlauncher protonup-ng
       wineWowPackages.stagingFull
+      #nix-gaming.packages.${system}.proton-ge
       linuxKernel.packages.linux_xanmod.xone
 
       konsole
@@ -17,12 +18,12 @@
       jetbrains.idea-community jdk
       #jetbrains.rider
       #jetbrains.pycharm-community
-      jetbrains.clion cmake gcc gnumake fftwFloat python310Packages.pip
+      jetbrains.clion cmake gcc gnumake python310Packages.pip
       (import ./programs/python.nix { pkgs = pkgs; })
       alejandra
       dbeaver sshuttle
 
-      btop htop nvtop hddtemp linuxKernel.packages.linux_xanmod_stable.cpupower thefuck
+      btop htop nvtop hddtemp linuxKernel.packages.linux_xanmod_stable.cpupower thefuck dig
       nix-tree nix-output-monitor
       pavucontrol unzip unar
 
@@ -52,7 +53,6 @@
       ./programs/i3.nix
       ./programs/alacritty.nix
       ./programs/chromium-extensions.nix
-      #./programs/python.nix
     ];
     home.file.".icons/default".source = "${pkgs.numix-cursor-theme}/share/icons/Numix-Cursor-Light/";
     /*home.file.".config/BetterDiscord" = {

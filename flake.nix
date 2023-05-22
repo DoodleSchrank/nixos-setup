@@ -3,19 +3,20 @@
 
   inputs = {
     #nixpkgs.url = "nixpkgs/nixos-22.11";
-    nixpkgs.url = "nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    #nix-gaming.url = "github:fufexan/nix-gaming";
     nurpkgs = {
       url = github:nix-community/NUR;
       inputs.nixpkgs.follows = "nixpkgs";
     };
     home-manager = {
-      url = github:nix-community/home-manager;
+      url = "github:nix-community/home-manager/master";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
   outputs = inputs @ { self, nixpkgs, #unstable,
-  nurpkgs, home-manager }:
+  nurpkgs, home-manager, ... }:
   let
     system = "x86_64-linux";
   in
