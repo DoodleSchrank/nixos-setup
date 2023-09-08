@@ -9,7 +9,4 @@
       KbdInteractiveAuthentication = false;
     };
   };
-  users.users."yannik".openssh.authorizedKeys.keyFiles = [
-    ./configs/ssh/authorized_keys
-  ];
 }

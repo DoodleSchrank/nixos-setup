@@ -1,13 +1,6 @@
 { config, pkgs, ... }:
 
 {
-  imports =
-    [
-      ./hardware-configuration.nix
-      ./programs/programs.nix
-      #<home-manager/nixos>
-    ];
-
   time.timeZone = "Europe/Amsterdam";
 
   i18n.defaultLocale = "en_US.UTF-8";
@@ -27,20 +20,12 @@
     systemPackages = with pkgs; [
       vim neovim
       wget curl gitFull
-      chromium firefox
       zsh alacritty
-      xclip maim
       trash-cli
-      nvidia-vaapi-driver jellyfin-ffmpeg
       nix-diff
+      age
     ];
   };
-  services.jellyfin.enable = true;
-  # flatpak shibizzles
-  services.flatpak.enable = true;
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-
 
   programs = {
     zsh.enable = true;
@@ -52,18 +37,9 @@
   security.sudo.wheelNeedsPassword = false;
   environment.localBinInPath = true;
 
-  users.users.yannik = {
-     isNormalUser = true;
-     extraGroups = [ "wheel" "adbusers" ];
-  };
-  home-manager.users.yannik = { pkgs, ...}: {
-    programs.zsh.enable = true;
-    imports = [ ./users/yannik/user.nix ];
-  };
   fonts.fonts = with pkgs; [
     noto-fonts noto-fonts-cjk noto-fonts-emoji dejavu_fonts
   ];
-  services.jellyfin.openFirewall = true;
 
   # Copy the NixOS configuration file and link it from the resulting system
   # (/run/current-system/configuration.nix). This is useful in case you

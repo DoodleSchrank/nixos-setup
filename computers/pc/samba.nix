@@ -59,7 +59,7 @@
         comment = "Todo";
         browseable = "yes";
         public = "yes";
-        writeable = "no";
+        writeable = "yes";
       };
       homes = {
         comment = "Home Directories";
