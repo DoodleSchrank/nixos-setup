@@ -1,11 +1,13 @@
 {
   services.samba-wsdd.enable = true;
   networking.firewall.allowedTCPPorts = [
-    445 139
+    445
+    139
     5357 # wsdd
   ];
   networking.firewall.allowedUDPPorts = [
-    137 138
+    137
+    138
     3702 # wsdd
   ];
   services.samba = {
@@ -28,7 +30,7 @@
       follow symlinks = yes
       wide links = yes
       unix extensions = no
-     '';
+    '';
     shares = {
       global = {
         "server min protocol" = "SMB3";

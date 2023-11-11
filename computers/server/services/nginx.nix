@@ -35,15 +35,28 @@
 
     virtualHosts = {
       "nnik.dev" = {
-        serverAliases = ["www.nnik.dev", "nnik.dev"];
-        listen = [{
-            addr = "[::]"; port = 443; ssl = true; extraParameters = ["ipv6only=on"];
-          } {
-            port = 443; ssl = true;
-          } {
-            addr = "[::]"; port = 8448; ssl = true; extraParameters = ["ipv6only=on" "http3"];
-          } {
-            port = 8448; ssl = true; extraParameters = ["http3"];
+        serverAliases = ["www.nnik.dev" "nnik.dev"];
+        listen = [
+          {
+            addr = "[::]";
+            port = 443;
+            ssl = true;
+            extraParameters = ["ipv6only=on"];
+          }
+          {
+            port = 443;
+            ssl = true;
+          }
+          {
+            addr = "[::]";
+            port = 8448;
+            ssl = true;
+            extraParameters = ["ipv6only=on" "http3"];
+          }
+          {
+            port = 8448;
+            ssl = true;
+            extraParameters = ["http3"];
           }
         ];
         addSSL = true;
@@ -51,14 +64,13 @@
         locations."~ ^(/_matrix|/_synapse/client)" = {
           proxyPass = "http://localhost:8008";
           extraConfig =
-            "proxy_set_header X-Forwarded-For $remote_addr;" +
-            "proxy_set_header X-Forwarded-Proto $scheme;" +
-            "proxy_set_header Host $host;" +
-            "client_max_body_size 200M;" +
-            "proxy_http_version 1.1;";
+            "proxy_set_header X-Forwarded-For $remote_addr;"
+            + "proxy_set_header X-Forwarded-Proto $scheme;"
+            + "proxy_set_header Host $host;"
+            + "client_max_body_size 200M;"
+            + "proxy_http_version 1.1;";
         };
       };
-
     };
   };
 }

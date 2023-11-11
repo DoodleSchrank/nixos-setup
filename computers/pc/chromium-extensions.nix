@@ -2,14 +2,7 @@
   programs.chromium.enable = true;
   programs.chromium.extensions = [
     "eimadpbcbfnmbkopoojfekhnkhdbieeh" # better darkmode
-    "cahpmepdjiejandeladmhfpapeagobnp" # advanced image search
-    "nngceckbapebfimnlniiiahkandclblb" # bitwarden
     "aapbdbdomjkkjkaonfhkkikfgjllcleb" # translate
-    "egmanfnfgmljjmdncfoeghfmflhlmhpj" # letterboxd streaming
-    "oocalimimngaihdkbihfgmpkcpnmlaoa" # teleparty
-    "gmmnidkpkgiohfdoenhpghbilmeeagjj" # sci hub steals
-    "mnjggcdmjocbbbhaepdhchncahnbgone" # sponsorblock for yt/inv
-    "ailoabdmgclmfmhdagmlohpjlbpffblp" # surfshark vpn
 
     "cjpalhdlnbpafiamejdnhcphjbkeiagm" # ublock origin
     "lckanjgmijmafbedllaakclkaicjfmnk" # clearurl
@@ -20,5 +13,13 @@
     "ogfcmafjalglgifnmanfmnieipoejdcf" # umatrix
     "gbobdaaeaihkghbokihkofcbndhmbdpd" # unshorten link
     "dbepggeogbaibhgnhhndojpepiihcmeb" # vimium
+
+    "cahpmepdjiejandeladmhfpapeagobnp" # advanced image search
+    "nngceckbapebfimnlniiiahkandclblb" # bitwarden
+    "egmanfnfgmljjmdncfoeghfmflhlmhpj" # letterboxd streaming
+    "oocalimimngaihdkbihfgmpkcpnmlaoa" # teleparty
+    "gmmnidkpkgiohfdoenhpghbilmeeagjj" # sci hub steals
+    "mnjggcdmjocbbbhaepdhchncahnbgone" # sponsorblock for yt/inv
+    "ailoabdmgclmfmhdagmlohpjlbpffblp" # surfshark vpn
   ];
 }

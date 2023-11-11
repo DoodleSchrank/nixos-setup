@@ -2,11 +2,10 @@
   programs.zsh = {
     enable = true;
     enableAutosuggestions = true;
-    enableSyntaxHighlighting = true;
+    syntaxHighlighting.enable = true;
     shellAliases = {
       la = "ls -lah";
       vim = "nvim";
-      rebuild = "sudo nixos-rebuild switch --flake '/etc/nixos#heimrechner' |& sudo nom";
       conf = "cd /etc/nixos/";
       rm = "trash";
       mkdir = "mkdir -p";
@@ -15,8 +14,11 @@
     };
     oh-my-zsh = {
       enable = true;
-      plugins = [ "sudo" "colorize" "colored-man-pages" "dirhistory" "extract" ];
+      plugins = ["sudo" "colorize" "colored-man-pages" "dirhistory" "extract"];
       theme = "robbyrussell";
     };
+    initExtra = ''
+      eval "$(direnv hook zsh)"
+    '';
   };
 }

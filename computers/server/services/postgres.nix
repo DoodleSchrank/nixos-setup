@@ -14,5 +14,4 @@
       GRANT ALL PRIVILEGES ON DATABASE nixcloud TO nixcloud;
     '';
   };
-  };
 }

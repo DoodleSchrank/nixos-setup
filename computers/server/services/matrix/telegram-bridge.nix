@@ -1,4 +1,4 @@
-{
+3{
   services.matrix-synapse = {
     enable = true;
     app_service_config_files = [
@@ -56,8 +56,8 @@
           args = {
             width = 256;
             height = 256;
-            fps = 30;               # only for webm
-            background = "020202";  # only for gif, transparency not supported
+            fps = 30; # only for webm
+            background = "020202"; # only for gif, transparency not supported
           };
         };
       };
@@ -65,7 +65,7 @@
   };
 
   systemd.services.mautrix-telegram.path = with pkgs; [
-    lottieconverter  # for animated stickers conversion, unfree package
-    ffmpeg           # if converting animated stickers to webm (very slow!)
+    lottieconverter # for animated stickers conversion, unfree package
+    ffmpeg # if converting animated stickers to webm (very slow!)
   ];
 }

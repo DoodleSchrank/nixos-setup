@@ -13,7 +13,6 @@
       customDNS:
         mapping:
           opti.plex: 192.168.178.20
-          nnik.dev: 192.168.178.20
       blocking:
         blackLists:
           ads:

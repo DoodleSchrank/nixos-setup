@@ -1,7 +1,0 @@
-keys:
-  - &sops-key age1a5y5p5zl20uvxf5l82qpggpe3ymuy8f43kdam93v3aw7s6ymhcnsz0tcjl
-creation_rules:
-  - path_regex: secrets/[^/]+\.yaml$
-    key_groups:
-      - age:
-          - *sops-key
