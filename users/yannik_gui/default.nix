@@ -20,12 +20,9 @@
 
   imports = [
     ../yannik_cli
-    ../../programs/zsh.nix
-    ../../programs/vim.nix
-    ../../programs/i3.nix
+    ../../programs/sway.nix
     ../../programs/alacritty.nix
     ../../programs/redshift.nix
-    ../../programs/vscode.nix
   ];
   home.file.".icons/default".source = "${pkgs.numix-cursor-theme}/share/icons/Numix-Cursor-Light/";
   /*

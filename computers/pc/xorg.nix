@@ -1,8 +1,8 @@
 {pkgs, ...}: {
   services.xserver = {
-    enable = true;
+    enable = false;
     layout = "de";
-    videoDrivers = ["nvidia"];
+    videoDrivers = ["amdgpu"];
     desktopManager.xterm.enable = false;
     # disabling lightdm makes autologin annoying ._. see https://konfou.xyz/posts/nixos-without-display-manager/
     #displayManager.startx.enable = true;
@@ -35,5 +35,8 @@
       };
     };
     exportConfiguration = true;
+  };
+  programs.sway = {
+    enable = true;
   };
 }

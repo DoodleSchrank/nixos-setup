@@ -8,21 +8,17 @@
   imports = [
     ./hardware-configuration.nix
   ];
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
   boot.initrd.availableKernelModules = ["cryptd"];
+  boot.initrd.kernelModules = [ "amdgpu" ];
   boot.kernelPackages = pkgs.linuxPackages_xanmod;
   boot.kernel.sysctl = {
     "abi.vsyscall32" = 0;
   };
   boot.supportedFilesystems = ["ntfs"];
-  boot.initrd.luks.devices."cryptroot" = {
-    device = "/dev/disk/by-uuid/2c565d63-925c-4041-8172-a0e652c3eb6a";
-    #https://nixos.wiki/wiki/Full_Disk_Encryption for some future day :(
-    #allowDiscards = true;
-    #keyFileSize = 4096;
-    #keyFile = "/dev/sdf";
-  };
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/76cec30a-4b0d-4f97-8be4-e34d0f456866";
 
   networking = {
     hostName = "yannik-pc";
@@ -34,7 +30,7 @@
     firewall.allowPing = true;
     defaultGateway = "192.168.178.1";
     nameservers = ["192.168.178.20"];
-    interfaces.enp12s0 = {
+    interfaces.enp14s0 = {
       wakeOnLan.enable = true;
       ipv4.addresses = [
         {
@@ -46,13 +42,18 @@
   };
   powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
   #nvidia shibizzles
-  hardware.opengl.enable = true;
-  hardware.nvidia.package = config.boot.kernelPackages.nvidiaPackages.stable;
-  hardware.nvidia.modesetting.enable = true;
-  hardware.nvidia.forceFullCompositionPipeline = true;
-
-  # steam shibizzles
-  hardware.opengl.driSupport32Bit = true;
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;
+    extraPackages = with pkgs; [
+      rocmPackages.clr.icd
+      libva
+      amdvlk
+    ];
+    extraPackages32 = with pkgs; [
+      rocmPackages.clr.icd
+    ];
+  };
 
   # nfs stuff
   fileSystems."/export/movies" = {

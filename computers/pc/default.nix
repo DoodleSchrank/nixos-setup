@@ -49,7 +49,7 @@
       steam
       steamtinkerlaunch
       lutris
-      yuzu-mainline
+      #yuzu-mainline
       vulkan-tools
       prismlauncher
       protonup-ng
@@ -65,7 +65,6 @@
       thunderbird
       betterdiscordctl
       zoom-us
-      teams-for-linux
       telegram-desktop
 
       feh
@@ -84,23 +83,15 @@
       #gcc
 
       direnv
-      cargo
-      rustc
-      rustup
-      rustfmt
 
-      gnumake
       python310
       python310Packages.pip
       (import ./python.nix {pkgs = pkgs;})
       python310Packages.setuptools
       alejandra
-      dbeaver
-      sshuttle
       mono
 
       alsa-lib
-      nvtop
       tree
       hddtemp
       linuxKernel.packages.linux_xanmod_stable.cpupower
@@ -124,10 +115,15 @@
       chromium
       firefox
 
-      btrfs-progs
       smartmontools
       parted
+
+      waybar
     ];
+    loginShellInit = ''
+    [[ "$(tty)" == /dev/tty? ]] && sudo /run/current-system/sw/bin/lock this 
+    [[ "$(tty)" == /dev/tty1 ]] && sway
+  '';
   };
 
   programs = {
@@ -135,14 +131,12 @@
     adb.enable = true;
     zsh = {
       shellAliases = {
-        rebuild = "sudo nixos-rebuild switch --flake '/etc/nixos#heimrechner' |& sudo nom";
+        rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos/nixos-setup#heimrechner' |& sudo nom";
       };
     };
   };
 
   services = {
-    jellyfin.enable = false;
-    jellyfin.openFirewall = true;
     flatpak.enable = true;
   };
   # flatpak shibizzles

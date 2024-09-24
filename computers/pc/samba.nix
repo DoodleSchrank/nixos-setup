@@ -15,7 +15,7 @@
     enableWinbindd = true;
     openFirewall = true;
     securityType = "user";
-    extraConfig = ''
+    /*extraConfig = ''
       security = user
       use sendfile = yes
       hosts allow = 192.168.0. 127.0.0.1 localhost
@@ -30,34 +30,13 @@
       follow symlinks = yes
       wide links = yes
       unix extensions = no
-    '';
+    '';*/
     shares = {
       global = {
         "server min protocol" = "SMB3";
       };
-      movies = {
-        path = "/storage/entertainment/movies";
-        comment = "Movies";
-        browseable = "yes";
-        public = "yes";
-        writeable = "no";
-      };
-      series = {
-        path = "/storage/entertainment/series";
-        comment = "Series";
-        browseable = "yes";
-        public = "yes";
-        writeable = "no";
-      };
-      music = {
-        path = "/storage/entertainment/music";
-        comment = "Music";
-        browseable = "yes";
-        public = "yes";
-        writeable = "no";
-      };
       todo = {
-        path = "/storage/entertainment/todo";
+        path = "/home/yannik/stuff/storage/entertainment/todo";
         comment = "Todo";
         browseable = "yes";
         public = "yes";
