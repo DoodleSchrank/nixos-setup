@@ -4,13 +4,12 @@
   ...
 }: {
   imports = [
-    ../../programs/sound.nix
-    ../../programs/ssh.nix
+    ../../modules/ssh.nix
     ./services.nix
   ];
 
   users.users."yannik".openssh.authorizedKeys.keyFiles = [
-    ../../programs/configs/ssh/authorized_keys
+    ../../modules/configs/ssh/authorized_keys
   ];
   virtualisation.docker.enable = true;
 
@@ -26,7 +25,7 @@
   };
   home-manager.users.yannik = {pkgs, ...}: {
     programs.zsh.enable = true;
-    imports = [../../users/yannik/user.nix];
+    imports = [];
   };
   services.jellyfin.openFirewall = true;
 }

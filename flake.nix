@@ -29,19 +29,15 @@
     };
 
     nixosConfigurations = {
-      heimrechner = nixpkgs.lib.nixosSystem {
+      pc = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = {
-          inherit inputs;
-        };
+        specialArgs = { inherit inputs; };
         modules = [
-          #./configuration.nix
-          ./computers/pc
-          sops-nix.nixosModules.sops
+          ./machines/pc
           inputs.home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
+            home-manager.users.yannik = ./profiles/pc;
           }
         ];
       };

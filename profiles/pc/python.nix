@@ -1,6 +1,8 @@
 {pkgs}:
-pkgs.python310.withPackages (p:
+pkgs.python312.withPackages (p:
     with p; [
+      pip
+      setuptools
       six
       pyparsing
       pillow

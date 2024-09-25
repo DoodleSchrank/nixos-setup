@@ -12,9 +12,8 @@
   ];
   services.samba = {
     enable = true;
-    enableWinbindd = true;
+    winbindd.enable = true;
     openFirewall = true;
-    securityType = "user";
     /*extraConfig = ''
       security = user
       use sendfile = yes
@@ -31,9 +30,10 @@
       wide links = yes
       unix extensions = no
     '';*/
-    shares = {
+    settings = {
       global = {
         "server min protocol" = "SMB3";
+        security = "user";
       };
       todo = {
         path = "/home/yannik/stuff/storage/entertainment/todo";

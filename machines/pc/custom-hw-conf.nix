@@ -14,7 +14,6 @@
   boot.kernel.sysctl = {
     "abi.vsyscall32" = 0;
   };
-  boot.supportedFilesystems = ["ntfs"];
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -41,7 +40,6 @@
     };
   };
   powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
-  #nvidia shibizzles
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
@@ -49,30 +47,11 @@
       rocmPackages.clr.icd
       libva
       amdvlk
+      libva
+      vaapiVdpau
     ];
     extraPackages32 = with pkgs; [
       rocmPackages.clr.icd
     ];
-  };
-
-  # nfs stuff
-  fileSystems."/export/movies" = {
-    device = "/storage/entertainment/movies";
-    options = ["bind"];
-  };
-
-  fileSystems."/export/series" = {
-    device = "/storage/entertainment/series";
-    options = ["bind"];
-  };
-
-  fileSystems."/export/todo" = {
-    device = "/storage/entertainment/todo";
-    options = ["bind"];
-  };
-
-  fileSystems."/export/music" = {
-    device = "/storage/entertainment/music";
-    options = ["bind"];
   };
 }
