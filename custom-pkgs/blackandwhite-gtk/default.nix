@@ -1,27 +1,21 @@
 { lib, stdenv, fetchgit }:
 
 stdenv.mkDerivation rec {
-  pname = "BlakcAndWhite";
+  pname = "BlackAndWhite";
   version = "1.0";
 
   srcs = [
     (fetchgit {
       url = "https://www.opencode.net/infinity64/blackandwhite-gtk.git";
-      hash = "";
-      sparseCheckout = [
-        "BlackAndWhite"
-      ];
+      hash = "sha256-llwr/jE3Ze1Cq1EZtz5w5ebRbUHVpHbrK6R+IdPXrY4=";
     })
   ];
 
   sourceRoot = ".";
 
   installPhase = ''
-    runHook preInstall
     mkdir -p $out/share/themes
-    cp -a BlackAndWhite* $out/share/themes
-    rm $out/share/themes/*/{LICENSE,README.md}
-    runHook postInstall
+    cp -a blackandwhite-gtk/BlackAndWhite $out/share/themes
   '';
 
   meta = with lib; {
