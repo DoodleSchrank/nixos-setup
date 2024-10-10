@@ -1,9 +1,9 @@
 {pkgs, ...}: {
   programs.sway = {
-    enable = false;
+    enable = true;
   };
   services.greetd = {
-    enable = false;
+    enable = true;
     settings = rec {
       initial_session = {
         command = "${pkgs.sway}/bin/sway";

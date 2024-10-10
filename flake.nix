@@ -41,6 +41,18 @@
           }
         ];
       };
+      thinkpad = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./machines/thinkpad
+          inputs.home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.users.yannik = ./profiles/thinkpad;
+          }
+        ];
+      };
     };
   };
 }

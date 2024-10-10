@@ -1,13 +1,4 @@
 {pkgs, ...}: {
-
-  home = {
-    packages = with pkgs; [
-      wofi
-      sway
-      waybar
-    ];
-  };
-
   wayland.windowManager.sway = {
     enable = true;
     systemd.enable = true;
@@ -75,8 +66,6 @@
       ];
       startup = [
         {command = "chromium"; }
-        {command = "element-desktop"; }
-        {command = "discord"; }
         {command = "thunderbird"; }
       ];
       keybindings = {
