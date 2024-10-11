@@ -1,4 +1,4 @@
-{config, pkgs, lib, ...}:
+{pkgs, ...}:
   let
     modButton = "Mod1";
   in {
@@ -77,11 +77,10 @@
       ];
       startup = [
         {command = "chromium"; }
+        {command = "betterbird"; }
+        {command = "warpinator"; }
         {command = "element-desktop"; }
         {command = "discord"; }
-        {command = "betterbird"; }
-        #{command = "localsend_app"; }
-        {command = "warpinator"; }
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';

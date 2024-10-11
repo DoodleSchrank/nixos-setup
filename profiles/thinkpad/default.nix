@@ -24,11 +24,16 @@
 
   nixpkgs.config.allowUnfree = true;
   home.packages = with pkgs; [
+    nix-diff
+    age
+    (pkgs.discord.override {
+      withOpenASAR = true;
+      withVencord = true;
+    })
     element-desktop
     thunderbird
     zoom-us
     telegram-desktop
-    parsec-bin
 
     feh
     okular
@@ -61,7 +66,6 @@
     localsend
 
     firefox
-
     smartmontools
     parted
   ];
@@ -72,14 +76,19 @@
     git = {
       enable = true;
       userName = "Yannik Könneker";
-      userEmail = "";
+      userEmail = "yannik.koenneker@ovgu.de";
     };
     zsh.enable = true;
   };
 
   services = {
     network-manager-applet.enable = true;
-    syncthing.enable = true;
+    udiskie = {
+      enable = true;
+      tray = "auto";
+      automount = true;
+      notify = false;
+    };
   };
 
   home.sessionVariables = {

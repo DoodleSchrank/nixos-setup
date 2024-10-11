@@ -74,6 +74,12 @@
   programs = {
   };
   services = {
+    zsh.enable = true;
+    zsh = {
+      shellAliases = {
+        rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos/nixos-setup#thinkpad' |& sudo nom";
+      };
+    };
   };
 
   xdg.portal.enable = true;
