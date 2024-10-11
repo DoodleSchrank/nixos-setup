@@ -6,8 +6,6 @@
 }: {
   imports = [
     ./custom-hw-conf.nix
-    ../../modules/avahi.nix
-    ../../modules/samba.nix
     ../../modules/sound.nix
     ../../modules/ssh.nix
     #../../modules/xorg.nix
@@ -74,24 +72,8 @@
   ];
 
   programs = {
-    steam = {
-      enable = true;
-      extraCompatPackages = [
-        pkgs.proton-ge-bin
-      ];
-      gamescopeSession = {
-        enable = true;
-      };
-    };
-    zsh.enable = true;
-    zsh = {
-      shellAliases = {
-        rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos/nixos-setup#pc' |& sudo nom";
-      };
-    };
   };
   services = {
-    flatpak.enable = true;
   };
 
   xdg.portal.enable = true;

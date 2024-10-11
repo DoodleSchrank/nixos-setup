@@ -17,7 +17,7 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/76cec30a-4b0d-4f97-8be4-e34d0f456866";
+  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/23ce993e-3161-424f-b6d7-93d9b9bdbcb9";
 
   networking = {
     hostName = "yannik-pc";
@@ -27,6 +27,7 @@
     '';
     firewall.enable = true;
     firewall.allowPing = true;
+    firewall.allowedTCPPorts = [53317 42000 42001];
     defaultGateway = "192.168.178.1";
     nameservers = ["192.168.178.20"];
     interfaces.enp14s0 = {

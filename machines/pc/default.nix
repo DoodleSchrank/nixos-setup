@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }: {
   imports = [
@@ -11,7 +12,9 @@
     ../../modules/sound.nix
     ../../modules/ssh.nix
     #../../modules/xorg.nix
+    #../../modules/vim.nix
     ../../modules/wayland.nix
+    #../../modules/zsh.nix
   ];
 
   system.stateVersion = "24.11";
@@ -42,8 +45,10 @@
       vimv
       ranger
       neovim
+      git
 
       btop
+      gparted
 
       zsh-command-time
       zsh-autocomplete
@@ -54,10 +59,14 @@
       zip
       unzip
       unar
+      # required to get urls to open in browser
+      # https://discourse.nixos.org/t/clicked-links-in-desktop-apps-not-opening-browers/29114/11
+      xdg-utils
+      inputs.umu.packages.${pkgs.system}.umu
     ];
   };
 
-  fonts.fonts = with pkgs; [
+  fonts.packages = with pkgs; [
     noto-fonts
     noto-fonts-cjk
     noto-fonts-emoji
@@ -70,20 +79,30 @@
   ];
 
   programs = {
-    zsh.enable = true;
-    zsh = {
-      shellAliases = {
-        rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos/nixos-setup#pc' |& sudo nom";
+    steam = {
+      enable = true;
+      extraCompatPackages = [
+        pkgs.proton-ge-bin
+      ];
+      gamescopeSession = {
+        enable = true;
       };
     };
+    zsh.enable = true;
+    dconf.enable = true;
   };
   services = {
-    flatpak.enable = true;
+    udisks2.enable = true;
   };
-
-  # flatpak shibizzles
-  xdg.portal.enable = true;
-  xdg.portal.extraPortals = [pkgs.xdg-desktop-portal-gtk];
+  xdg.portal = {
+    enable = true;
+    extraPortals = [pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr];
+    wlr.enable = true;
+    xdgOpenUsePortal = true;
+    config = {
+      common.default = ["gtk" "wlr"];
+    };
+  };
 
   users.users.yannik = {
     isNormalUser = true;

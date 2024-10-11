@@ -1,12 +1,10 @@
 {pkgs, ...}: {
-  programs.sway = {
-    enable = false;
-  };
   services.greetd = {
-    enable = false;
+    enable = true;
     settings = rec {
       initial_session = {
-        command = "${pkgs.sway}/bin/sway";
+        # https://discourse.nixos.org/t/issue-with-xdg-open-in-sway/38096
+        command = "dbus-run-session ${pkgs.sway}/bin/sway";
         user = "yannik";
       };
       default_session = initial_session;

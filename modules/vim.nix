@@ -1,8 +1,9 @@
 {
   programs.neovim = {
     enable = true;
-    coc.enable = true;
     defaultEditor = true;
+    vimAlias = true;
+    viAlias = true;
     extraConfig = ''
       set number
       set mouse=nvi

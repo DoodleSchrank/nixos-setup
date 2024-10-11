@@ -1,5 +1,7 @@
-{pkgs, ...}: {
-
+{config, pkgs, lib, ...}:
+  let
+    modButton = "Mod1";
+  in {
   home = {
     packages = with pkgs; [
       wofi
@@ -18,7 +20,7 @@
           xkb_variant = "nodeadkeys";
         };
       };
-      modifier = "Mod1";
+      modifier = modButton;
       bars = [
       {
         command = "${pkgs.waybar}/bin/waybar ";
@@ -62,7 +64,7 @@
         names = ["DejaVU Sans Mono"];
         size = 8.0;
       };
-      menu = "${pkgs.wofi}/bin/wofi --show drun";
+      menu = "${pkgs.fuzzel}/bin/fuzzel --show drun";
       terminal = "alacritty";
       window = {
         border = 0;
@@ -77,10 +79,12 @@
         {command = "chromium"; }
         {command = "element-desktop"; }
         {command = "discord"; }
-        {command = "thunderbird"; }
+        {command = "betterbird"; }
+        #{command = "localsend_app"; }
+        {command = "warpinator"; }
       ];
-      keybindings = {
-        "${modifier}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
+      keybindings = lib.mkOptionDefault {
+        "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
       };
     };
   };
@@ -131,14 +135,30 @@
       "sway/mode" = { format = ''<span style="italic">{}</span>''; };
     }];
   };
-  programs.wofi = {
+  #program launcher
+  programs.fuzzel = {
     enable = true;
-    style = ''
-      * {
-        color: white;
-        background: black;
-      }
-    '';
-
+    settings = {
+      colors.foreground = "ffffffff";
+      colors.background = "000000AA";
+    };
+  };
+  #notifications
+  services.mako = {
+    enable = true;
+    anchor = "top-right";
+    backgroundColor = "#00000088";
+    defaultTimeout = 2500;
+  };
+  #nightlight
+  services.gammastep = {
+    enable = true;
+    dawnTime = "7:00-8:00";
+    duskTime = "22:30-23:00";
+    latitude = 54.5;
+    longitude = 9.9;
+    temperature.day = 6500;
+    temperature.night = 3000;
+    tray = true;
   };
 }

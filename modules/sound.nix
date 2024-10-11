@@ -7,12 +7,12 @@
       support32Bit = true;
     };
     pulse.enable = true;
-    jack.enable = true;
-    #lowLatency = {
-    #  enable = true;
-    #  quantum = 64;
-    #  rate = 48000;
-    #};
-    #security.rtkit.enable = true;
+    #jack.enable = true;
+    extraConfig.pipewire = {
+      default.clock.allowed-rates = [ 44100 48000 96000 ];
+      default.clock.quantum = 32;
+      default.clock.min-quantum = 32;
+      default.clock.max-quantum = 1024;
+    };
   };
 }

@@ -11,7 +11,7 @@
       mkdir = "mkdir -p";
       cd = "take"; # from zsh
       fuck = "thefuck";
-      rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos/nixos-setup#pc' |& sudo nom";
+      rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#pc' |& sudo nom";
     };
     oh-my-zsh = {
       enable = true;
