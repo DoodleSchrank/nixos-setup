@@ -1,4 +1,4 @@
-{pkgs, ...}:
+{pkgs, lib, ...}:
 {
   programs.waybar = {
     enable = true;
@@ -20,46 +20,48 @@
         color: red;
       }
     '';
-    settings = [{
-      height = 10;
-      layer = "top";
-      position = "top";
-      tray = { spacing = 10; };
-      modules-left = [ "sway/workspaces" "sway/mode" ];
-      modules-center = [ "sway/window" ];
-      modules-right = [
-        "network"
-        "cpu"
-        "memory"
-        "battery"
-        "clock"
-        "tray"
-      ];
-      clock = {
-        format = "{:%d-%m-%Y - %H:%M}";
-      };
-      cpu = {
-        format = "CPU: {usage}%";
-        tooltip = false;
-      };
-      memory = { format = "{used}GiB / {avail}GiB"; };
-      network = {
-        format = "{ipaddr}";
-        format-disconnected = "Disconnected ⚠";
-        format-wifi = "{essid} ({signalStrength}%) ";
-      };
-      battery = {
-        format = "{capacity}% {icon}";
-        format-alt = "{time} {icon}";
-        format-charging = "{capacity}% ";
-        format-icons = [ "" "" "" "" "" ];
-        format-plugged = "{capacity}% ";
-        states = {
-          critical = 15;
-          warning = 30;
+    settings = {
+      mainbar = {
+        height = 10;
+        layer = "top";
+        position = "top";
+        tray = { spacing = 10; };
+        modules-left = [ "sway/workspaces" "sway/mode" ];
+        modules-center = [ "sway/window" ];
+        modules-right = lib.mkDefault [
+          "network"
+          "cpu"
+          "memory"
+          "battery"
+          "clock"
+          "tray"
+        ];
+        clock = {
+          format = "{:%d-%m-%Y - %H:%M}";
         };
+        cpu = {
+          format = "CPU: {usage}%";
+          tooltip = false;
+        };
+        memory = { format = "{used}GiB / {avail}GiB"; };
+        network = {
+          format = "{ipaddr}";
+          format-disconnected = "Disconnected ⚠";
+          format-wifi = "{essid} ({signalStrength}%) ";
+        };
+        battery = {
+          format = "{capacity}% {icon}";
+          format-alt = "{time} {icon}";
+          format-charging = "{capacity}% ";
+          format-icons = [ "" "" "" "" "" ];
+          format-plugged = "{capacity}% ";
+          states = {
+            critical = 15;
+            warning = 30;
+          };
+        };
+        "sway/mode" = { format = ''<span style="italic">{}</span>''; };
       };
-      "sway/mode" = { format = ''<span style="italic">{}</span>''; };
-    }];
+    };
   };
 }

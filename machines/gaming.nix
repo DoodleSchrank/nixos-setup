@@ -1,5 +1,8 @@
 {pkgs, inputs, ...}:
 {
+  boot.kernel.sysctl = {
+    "abi.vsyscall32" = 0;
+  };
   environment = {
     pathsToLink = ["/libexec"];
     systemPackages = with pkgs; [
