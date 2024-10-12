@@ -36,7 +36,7 @@
     nixosConfigurations = {
       pc = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit inputs; mobile = false;};
+        specialArgs = { inherit inputs; };
         modules = [
           ./custom-pkgs
           ./machines/pc
@@ -47,16 +47,16 @@
           }
         ];
       };
-      laptop = nixpkgs.lib.nixosSystem {
+      acer = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit inputs; };
         modules = [
           ./custom-pkgs
-          ./machines/pc
+          ./machines/acer
           inputs.home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
-            home-manager.users.yannik = ./profiles/pc;
+            home-manager.users.yannik = ./profiles/acer;
           }
         ];
       };

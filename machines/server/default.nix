@@ -9,7 +9,7 @@
   ];
 
   users.users."yannik".openssh.authorizedKeys.keyFiles = [
-    ../../modules/configs/ssh/authorized_keys
+    ../modules/configs/ssh/authorized_keys
   ];
   virtualisation.docker.enable = true;
 

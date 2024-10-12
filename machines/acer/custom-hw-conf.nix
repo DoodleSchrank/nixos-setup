@@ -9,15 +9,12 @@
     ./hardware-configuration.nix
   ];
   boot.initrd.availableKernelModules = ["cryptd"];
-  boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.initrd.kernelModules = [ "" ];
   boot.kernelPackages = pkgs.linuxPackages_xanmod;
-  boot.kernel.sysctl = {
-    "abi.vsyscall32" = 0;
-  };
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/23ce993e-3161-424f-b6d7-93d9b9bdbcb9";
+  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/<todo>";
 
   networking = {
     hostName = "yannik-pc";
