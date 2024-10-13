@@ -14,10 +14,10 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/<todo>";
+  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/c786c76a-7cad-492f-9681-b5b4efa0984a";
 
   networking = {
-    hostName = "yannik-pc";
+    hostName = "yannik-laptop";
     networkmanager.enable = true;
     extraHosts = ''
       127.0.0.1 localhost
@@ -30,11 +30,11 @@
     nameservers = ["192.168.178.20"];
     interfaces.enp14s0 = {
       wakeOnLan.enable = true;
-      ipv4.addresses = [
-        {
-          address = "192.168.178.21";
-          prefixLength = 24;
-        }
+#      ipv4.addresses = [
+#        {
+#address = "192.168.178.49";
+#          prefixLength = 24;
+#        }
       ];
     };
   };
@@ -43,14 +43,8 @@
     enable = true;
     enable32Bit = true;
     extraPackages = with pkgs; [
-      rocmPackages.clr.icd
-      libva
-      amdvlk
       libva
       vaapiVdpau
-    ];
-    extraPackages32 = with pkgs; [
-      rocmPackages.clr.icd
     ];
   };
 }

@@ -17,6 +17,12 @@
           xkb_layout = "de";
           xkb_variant = "nodeadkeys";
         };
+        "type:touchpad" = {
+          dwt = "enabled";
+          tap = "enabled";
+          middle_emulation = "enabled";
+          natural_scroll = "enabled";
+        };
       };
       modifier = modButton;
       bars = [
@@ -81,6 +87,8 @@
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
+        "${modButton}+F3" = "light -U 10";
+        "${modButton}+F4" = "light -A 10";
       };
     };
   };
