@@ -1,6 +1,7 @@
 {pkgs, ...}:
 {
   home.packages = with pkgs; [
+    parsec-bin
     #gaming
     steamtinkerlaunch
     lutris

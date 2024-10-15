@@ -16,7 +16,6 @@
     betterbird
     zoom-us
     telegram-desktop
-    parsec-bin
     mattermost-desktop
     rustdesk-flutter
 
