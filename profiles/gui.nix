@@ -32,6 +32,9 @@
     warpinator
     firefox
     udiskie
+
+    # https://github.com/nix-community/home-manager/issues/3113
+    pkgs.dconf
   ];
 
   services = {
