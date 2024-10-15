@@ -15,6 +15,6 @@
 
   # overrides of defaults
   programs.git.userEmail = "y.koenneker@web.de";
-    programs.zsh.shellAliases.rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#acer' |& sudo nom";
+  programs.zsh.shellAliases.rebuild = lib.mkForce "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#acer' |& sudo nom";
 
 }
