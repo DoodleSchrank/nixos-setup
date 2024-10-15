@@ -35,7 +35,7 @@
 #address = "192.168.178.49";
 #          prefixLength = 24;
 #        }
-      ];
+#      ];
     };
   };
   powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
