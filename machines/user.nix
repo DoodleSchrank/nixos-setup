@@ -10,7 +10,7 @@
 
   users.users.yannik = {
     isNormalUser = true;
-    extraGroups = ["wheel" "adbusers" "video"];
+    extraGroups = ["wheel" "adbusers" "video" "networkmanager"];
     openssh.authorizedKeys.keyFiles = [ modules/configs/ssh/authorized_keys];
   };
 }

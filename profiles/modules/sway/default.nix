@@ -84,6 +84,7 @@
         {command = "betterbird"; }
         {command = "gammastep"; }
         {command = "warpinator"; }
+        {command = "nm-applet"; }
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
