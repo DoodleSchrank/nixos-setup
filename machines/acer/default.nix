@@ -9,5 +9,6 @@
     ./custom-hw-conf.nix
     ../gui.nix
     ../ci.nix
+    ../user.nix
   ];
 }
