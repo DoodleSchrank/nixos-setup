@@ -19,7 +19,7 @@
       WantedBy = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "${pkgs.steam} -nochatui -nofriendsui -silent %U";
+      ExecStart = "${pkgs.steam}/bin/steam -nochatui -nofriendsui -silent %U";
       Restart = "on-failure";
       RestartSec = "5s";
     };

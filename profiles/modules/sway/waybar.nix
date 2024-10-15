@@ -19,6 +19,9 @@
       #network.disconnected, #network.disabled {
         color: red;
       }
+      * {
+        font-family: FiraCode;
+      }
     '';
     settings = {
       mainbar = {

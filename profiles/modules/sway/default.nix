@@ -73,12 +73,11 @@
         {workspace = "1"; output = "DP-1";}
         {workspace = "2"; output = "DP-3";}
       ];
-      startup = [
+      startup = lib.mkOptionDefault [
         {command = "chromium"; }
         {command = "betterbird"; }
+        {command = "gammastep"; }
         {command = "warpinator"; }
-        {command = "element-desktop"; }
-        {command = "discord"; }
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';

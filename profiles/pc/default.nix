@@ -6,6 +6,7 @@
   environment,
   specialArgs,
   inputs,
+  options,
   ...
 }: {
   imports = [
@@ -16,6 +17,9 @@
   ];
 
   home.packages = with pkgs; [
+    #drawing
+    krita
+
     #amd
     amdvlk
     vulkan-tools
@@ -44,4 +48,10 @@
     "clock"
     "tray"
   ];
+  wayland.windowManager.sway.config.startup = lib.mkOptionDefault [
+    {command = "element-desktop"; }
+    {command = "discord"; }
+    {command = "mattermost-desktop"; }
+  ];
+
 }

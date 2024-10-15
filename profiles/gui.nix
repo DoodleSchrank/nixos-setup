@@ -18,7 +18,7 @@
     telegram-desktop
     parsec-bin
     mattermost-desktop
-    rustdesk
+    rustdesk-flutter
 
     #media
     feh

@@ -11,6 +11,9 @@
 
       colors.primary.background = "#000000";
       colors.primary.foreground = "#ffffff";
+      colors.normal.black = "#000000";
+      colors.bright.black = "#000000";
+      colors.dim.black = "#000000";
 
       cursor.style.shape = "Beam";
     };
