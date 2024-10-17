@@ -14,7 +14,7 @@
 
   systemd.user.services.steam = {
     Unit = {
-      description = "Open Steam in the background at boot";
+      Description = "Open Steam in the background at boot";
     };
     Install = {
       WantedBy = [ "graphical-session.target" ];

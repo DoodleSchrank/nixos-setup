@@ -20,6 +20,12 @@
     #drawing
     krita
 
+    #programming
+    android-studio
+    flutter
+    android-tools
+    sdkmanager
+
     #amd
     amdvlk
     vulkan-tools

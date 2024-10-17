@@ -32,20 +32,26 @@
     warpinator
     firefox
     udiskie
-
-    # https://github.com/nix-community/home-manager/issues/3113
-    pkgs.dconf
+    #file browser
+    nemo
   ];
 
+  # doesnt recognize wayland
   services = {
     network-manager-applet.enable = true;
     udiskie = {
       enable = true;
       tray = "auto";
-      automount = true;
+      automount = false;
       notify = false;
+      settings = {
+        program_options = {
+          file_manager = "${pkgs.alacritty}/bin/alacritty -e ${pkgs.ranger}/bin/ranger";
+        };
+      };
     };
   };
+
   home.file.".icons/default".source = "${pkgs.numix-cursor-theme}/share/icons/Numix-Cursor-Light/";
 
   home.sessionVariables = {

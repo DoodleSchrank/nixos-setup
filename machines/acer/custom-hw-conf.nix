@@ -10,7 +10,7 @@
   ];
   boot.initrd.availableKernelModules = ["cryptd"];
   boot.initrd.kernelModules = [ "" ];
-  boot.kernelPackages = pkgs.linuxPackages_xanmod;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -28,15 +28,14 @@
     firewall.allowedTCPPorts = [42000 42001];
     defaultGateway = "192.168.178.1";
     nameservers = ["192.168.178.20"];
-    interfaces.enp14s0 = {
-      wakeOnLan.enable = true;
-#      ipv4.addresses = [
+#    interfaces.enp14s0 = {
+    #      ipv4.addresses = [
 #        {
-#address = "192.168.178.49";
+#address = "192.168.178.22";
 #          prefixLength = 24;
 #        }
 #      ];
-    };
+ #   };
   };
   powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
   hardware.graphics = {

@@ -3,6 +3,8 @@
   programs.zsh = {
     enable = true;
     autosuggestion.enable = true;
+    autosuggestion.strategy = ["match_prev_cmd" "completion" "history"];
+    autosuggestion.highlight = "fg=#888888,bg=black";
     syntaxHighlighting.enable = true;
     shellAliases = {
       la = "ls -lah";

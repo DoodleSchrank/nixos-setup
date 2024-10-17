@@ -10,7 +10,7 @@
   ];
   boot.initrd.availableKernelModules = ["cryptd"];
 #  boot.initrd.kernelModules = [ "" ];
-  boot.kernelPackages = pkgs.linuxPackages;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernel.sysctl = {
     "abi.vsyscall32" = 0;
   };

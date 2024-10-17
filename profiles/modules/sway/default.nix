@@ -5,12 +5,27 @@
   imports = [
     ./fuzzel.nix
     ./gammastep.nix
+    #./wlsunset.nix
     ./mako.nix
     ./waybar.nix
   ];
+  home.packages = with pkgs; [
+    #multi monitor support
+    wdisplays
+
+    # screenshot
+    grim
+    slurp
+    wl-clipboard
+
+    # backlight
+    light
+
+    networkmanagerapplet
+  ];
   wayland.windowManager.sway = {
     enable = true;
-    systemd.enable = true;
+    #systemd.enable = true;
     config = rec {
       input = {
         "*" = {
@@ -82,9 +97,11 @@
       startup = lib.mkOptionDefault [
         {command = "chromium"; }
         {command = "betterbird"; }
-        {command = "gammastep"; }
         {command = "warpinator"; }
+        # services don't work
         {command = "nm-applet"; }
+        {command = "gammastep"; }
+        {command = "udiskie --no-automount --no-notify --tray"; }
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';

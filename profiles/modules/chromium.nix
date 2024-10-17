@@ -1,8 +1,13 @@
 {pkgs, config, ...}: {
   nixpkgs.config.packageOverrides = pkgs: {
-   chromium = pkgs.chromium.override {
-     enableWideVine = true;
-   };
+    chromium = pkgs.chromium.override {
+      enableWideVine = true;
+      commandLineArgs = [
+        "--enable-features=VaapiVideoDecodeLinuxGL"
+        "--ignore-gpu-blocklist"
+        "--enable-zero-copy"
+      ];
+    };
   };
   programs.chromium = {
     enable = true;

@@ -24,4 +24,9 @@
     style.package = [pkgs.adwaita-qt];
     style.name = "adwaita-dark";
   };
+
+  home.packages = with pkgs; [
+    # https://github.com/nix-community/home-manager/issues/3113
+    pkgs.dconf
+  ];
 }
