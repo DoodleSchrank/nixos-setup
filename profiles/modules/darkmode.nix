@@ -12,6 +12,11 @@
       name = "BlackAndWhite";
       package = pkgs.custom-packages.blackandwhite-gtk;
     };
+    iconTheme = {
+      name = "rose-pine";
+      package = pkgs.rose-pine-icon-theme;
+    };
+    font.name = "FiraCode";
   };
 
   # Wayland, X, etc. support for session vars

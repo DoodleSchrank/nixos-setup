@@ -25,7 +25,7 @@
   ];
   wayland.windowManager.sway = {
     enable = true;
-    #systemd.enable = true;
+    systemd.enable = true;
     config = rec {
       input = {
         "*" = {
@@ -99,9 +99,9 @@
         {command = "betterbird"; }
         {command = "warpinator"; }
         # services don't work
-        {command = "nm-applet"; }
-        {command = "gammastep"; }
-        {command = "udiskie --no-automount --no-notify --tray"; }
+        #{command = "nm-applet"; }
+        #{command = "gammastep"; }
+        #{command = "udiskie --no-automount --no-notify --tray"; }
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';

@@ -11,6 +11,7 @@
     (pkgs.discord.override {
       withOpenASAR = true;
       withVencord = true;
+      nss = nss;
     })
     element-desktop
     betterbird
@@ -30,8 +31,9 @@
     libreoffice
     android-file-transfer
     warpinator
-    firefox
     udiskie
+    firefox
+
     #file browser
     nemo
   ];
@@ -49,6 +51,29 @@
           file_manager = "${pkgs.alacritty}/bin/alacritty -e ${pkgs.ranger}/bin/ranger";
         };
       };
+    };
+  };
+
+  # fix xdg-open
+  # https://github.com/NixOS/nixpkgs/issues/189851
+  systemd.user.services.wait-for-full-path = {
+    Unit.Description = "wait for systemd units to have full PATH";
+    Install = {
+      WantedBy = [ "xdg-desktop-portal.service" ];
+      Before = [ "xdg-desktop-portal.service" ];
+      Path = with pkgs; [ systemd coreutils gnugrep ];
+    };
+    Service = {
+      ExecStart = ''
+        ispresent () {
+          systemctl --user show-environment | grep -E '^PATH=.*/.nix-profile/bin'
+        }
+        while ! ispresent; do
+          sleep 0.1;
+        done
+      '';
+      Type = "oneshot";
+      TimeoutStartSec = "60";
     };
   };
 

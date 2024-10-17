@@ -4,7 +4,7 @@
     enable = true;
     autosuggestion.enable = true;
     autosuggestion.strategy = ["match_prev_cmd" "completion" "history"];
-    autosuggestion.highlight = "fg=#888888,bg=black";
+    autosuggestion.highlight = "fg=#888888";
     syntaxHighlighting.enable = true;
     shellAliases = {
       la = "ls -lah";

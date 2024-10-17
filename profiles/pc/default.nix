@@ -32,17 +32,17 @@
     dxvk
   ];
 
-  /*xdg.mimeApps = {
-    enable                              =  true;
-    defaultApplications = {
-        "default-web-browser"           = [ "firefox.desktop" ];
-        "text/html"                     = [ "firefox.desktop" ];
-        "x-scheme-handler/http"         = [ "firefox.desktop" ];
-        "x-scheme-handler/https"        = [ "firefox.desktop" ];
-        "x-scheme-handler/about"        = [ "firefox.desktop" ];
-        "x-scheme-handler/unknown"      = [ "firefox.desktop" ];
-    };
-  };*/
+  #xdg.mimeApps = {
+  #  enable                              =  true;
+  #  defaultApplications = {
+  #      "default-web-browser"           = [ "chromium.desktop" ];
+  #      "text/html"                     = [ "chromium.desktop" ];
+  #      "x-scheme-handler/http"         = [ "chromium.desktop" ];
+  #      "x-scheme-handler/https"        = [ "chromium.desktop" ];
+  #      "x-scheme-handler/about"        = [ "chromium.desktop" ];
+  #      "x-scheme-handler/unknown"      = [ "chromium.desktop" ];
+  #  };
+  #};
 
   # overrides of defaults
   programs.git.userEmail = "y.koenneker@web.de";
