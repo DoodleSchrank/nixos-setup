@@ -1,7 +1,6 @@
 {pkgs, ...}:
 {
   home.packages = with pkgs; [
-    parsec-bin
     #gaming
     steamtinkerlaunch
     lutris
@@ -10,8 +9,8 @@
     r2mod_cli
     gamemode
     wineWowPackages.waylandFull
+    flatpak
   ];
-
   systemd.user.services.steam = {
     Unit = {
       Description = "Open Steam in the background at boot";

@@ -98,6 +98,13 @@
         {command = "chromium"; }
         {command = "betterbird"; }
         {command = "warpinator"; }
+
+        #https://discourse.nixos.org/t/open-links-from-flatpak-via-host-firefox/15465/11
+        {command = "systemctl --user import-environment PATH"; }
+        {command = "systemctl --user restart xdg-desktop-portal.service"; }
+
+
+
         # services don't work
         #{command = "nm-applet"; }
         #{command = "gammastep"; }

@@ -56,26 +56,30 @@
 
   # fix xdg-open
   # https://github.com/NixOS/nixpkgs/issues/189851
-  systemd.user.services.wait-for-full-path = {
-    Unit.Description = "wait for systemd units to have full PATH";
-    Install = {
-      WantedBy = [ "xdg-desktop-portal.service" ];
-      Before = [ "xdg-desktop-portal.service" ];
-      Path = with pkgs; [ systemd coreutils gnugrep ];
-    };
-    Service = {
-      ExecStart = ''
-        ispresent () {
-          systemctl --user show-environment | grep -E '^PATH=.*/.nix-profile/bin'
-        }
-        while ! ispresent; do
-          sleep 0.1;
-        done
-      '';
-      Type = "oneshot";
-      TimeoutStartSec = "60";
-    };
-  };
+  #waitForFullPath = {}:
+  #  stdenv.mkDerivation {
+  #    name = "wait-for-full-path";
+  #    builder = writeShellScript "waitForFullPath.sh" ''
+  #      ispresent () {
+  #        systemctl --user show-environment | grep -E '^PATH=.*/.nix-profile/bin'
+  #      }
+  #      while ! ispresent; do
+  #        sleep 0.1;
+  #      done
+  #    '';
+  #  };
+  #systemd.user.services.wait-for-full-path = {
+  #  Unit.Description = "wait for systemd units to have full PATH";
+  #  Install = {
+  #    WantedBy = [ "xdg-desktop-portal.service" ];
+  #    #Before = [ "xdg-desktop-portal.service" ];
+  #  };
+  #  Service = {
+  #  # ExecStart = ''${waitForFullPath}/waitForFullPath.sh'';
+  #    Type = "oneshot";
+  #    TimeoutStartSec = "60";
+  #  };
+  #};
 
   home.file.".icons/default".source = "${pkgs.numix-cursor-theme}/share/icons/Numix-Cursor-Light/";
 

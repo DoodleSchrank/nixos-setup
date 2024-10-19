@@ -6,6 +6,6 @@
     jetbrains.idea-ultimate
     jetbrains.clion
     direnv
-    #(import ./python.nix {pkgs = pkgs;})
+    (import ./python.nix {pkgs = pkgs;})
   ];
 }

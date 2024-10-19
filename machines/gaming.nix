@@ -9,6 +9,7 @@
       inputs.umu.packages.${pkgs.system}.umu
     ];
   };
+  services.flatpak.enable = true;
   programs = {
     steam = {
       enable = true;

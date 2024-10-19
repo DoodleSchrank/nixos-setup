@@ -5,7 +5,6 @@
     sops-nix.url = "github:Mic92/sops-nix";
     #nixpkgs.url = "nixpkgs/nixos-22.11";
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    #nix-gaming.url = "github:fufexan/nix-gaming";
     home-manager = {
       url = "github:nix-community/home-manager/master";
       inputs.nixpkgs.follows = "nixpkgs";
