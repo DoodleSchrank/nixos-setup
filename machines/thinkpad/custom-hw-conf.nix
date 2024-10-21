@@ -17,7 +17,7 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/45e918a4-9733-4b2f-affd-63aafeccd212";
+  boot.initrd.luks.devices.cryptroot.device = "/dev/disk/by-uuid/8e56fedd-d177-4b11-993d-733fbddaa774";
 
   networking = {
     hostName = "yannik-koenneker-thinkpad";
