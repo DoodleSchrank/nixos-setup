@@ -63,7 +63,8 @@
         inherit system;
         specialArgs = { inherit inputs; };
         modules = [
-          ./machines/thinkpad
+          ./custom-pkgs
+	  ./machines/thinkpad
           inputs.home-manager.nixosModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
