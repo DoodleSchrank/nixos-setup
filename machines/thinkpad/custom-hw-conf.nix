@@ -38,4 +38,10 @@
       vaapiVdpau
     ];
   };
+  hardware.opentabletdriver.enable = true;
+  hardware.opentabletdriver.daemon.enable = true;
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
+  services.hardware.bolt.enable = true;
+
 }
