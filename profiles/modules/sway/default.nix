@@ -38,6 +38,9 @@
           middle_emulation = "enabled";
           natural_scroll = "enabled";
         };
+        "1386:21398:WACF2200:00_056A:5396_Stylus" = {
+          map_to_output = "'California Institute of Technology 0x1413 Unknown'";
+        };
       };
       modifier = modButton;
       bars = [
@@ -45,7 +48,7 @@
         command = "${pkgs.waybar}/bin/waybar ";
         position = "top";
       }];
-      defaultWorkspace = "2";
+      defaultWorkspace = "workspace number 1";
       colors = {
         focused = {
           background = "#000000";
@@ -111,9 +114,24 @@
         #{command = "udiskie --no-automount --no-notify --tray"; }
       ];
       keybindings = lib.mkOptionDefault {
-        "${modButton}+Insert exec" =  ''${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
-        "${modButton}+F3" = "light -U 10";
-        "${modButton}+F4" = "light -A 10";
+        "${modButton}+Insert" =  ''exec ${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
+        "${modButton}+F3" = "exec light -U 10";
+        "${modButton}+F4" = "exec light -A 10";
+      };
+      modes = {
+        drawing = {
+          t = "exec gromit-mpx --toggle";
+          c = "exec gromit-mpx --clear";
+          v = "exec gromit-mpx --visibility";
+          q = "exec gromit-mpx --quit";
+          u = "exec gromit-mpx --undo";
+          r = "exec gromit-mpx --redo";
+          p = "mode 'default'";
+        };
+      };
+      keycodebindings = {
+        "272" = "exec gromit-mpx --redo";
+        "273" = "exec gromit-mpx --undo";
       };
     };
   };
