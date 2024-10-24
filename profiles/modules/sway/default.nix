@@ -7,6 +7,7 @@
     ./gammastep.nix
     #./wlsunset.nix
     ./mako.nix
+    ./swaylock.nix
     ./waybar.nix
   ];
   home.packages = with pkgs; [
@@ -93,7 +94,7 @@
         hideEdgeBorders = "both";
       };
       workspaceAutoBackAndForth = true;
-      workspaceOutputAssign = [
+      workspaceOutputAssign = lib.mkOptionDefault[
         {workspace = "1"; output = "DP-1";}
         {workspace = "2"; output = "DP-3";}
       ];

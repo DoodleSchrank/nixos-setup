@@ -31,6 +31,9 @@
       {command = "mattermost-desktop"; }
       {command = "kanshi"; always = true;}
     ];
+    workspaceOutputAssign = lib.mkForce [
+      {workspace = "1"; output = "eDP-1";}
+    ];
     keybindings = lib.mkOptionDefault {
       "Mod1+P" = "mode 'drawing'";
     };
