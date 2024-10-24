@@ -15,6 +15,7 @@
     nix-output-monitor
     nix-diff
     age
+    direnv
 
     #other ci tools
     tree
