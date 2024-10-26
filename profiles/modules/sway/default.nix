@@ -109,7 +109,7 @@
 
 
 
-        # services don't work
+        # if services don't work
         #{command = "nm-applet"; }
         #{command = "gammastep"; }
         #{command = "udiskie --no-automount --no-notify --tray"; }
