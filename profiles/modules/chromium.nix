@@ -3,6 +3,8 @@
     chromium = pkgs.chromium.override {
       enableWideVine = true;
       commandLineArgs = [
+        "--enable-features=UseOzonePlatform"
+        "--ozone-platform=wayland"
         "--enable-features=VaapiVideoDecodeLinuxGL"
         "--ignore-gpu-blocklist"
         "--enable-zero-copy"
@@ -11,7 +13,6 @@
   };
   programs.chromium = {
     enable = true;
-    #environment.sessionVariables.NIXOS_OZONE_WL = "1";
     extensions = [
       "eimadpbcbfnmbkopoojfekhnkhdbieeh" # better darkmode
       "aapbdbdomjkkjkaonfhkkikfgjllcleb" # translate
@@ -28,13 +29,16 @@
 
       "cahpmepdjiejandeladmhfpapeagobnp" # advanced image search
       "nngceckbapebfimnlniiiahkandclblb" # bitwarden
-      "egmanfnfgmljjmdncfoeghfmflhlmhpj" # letterboxd streaming
       "oocalimimngaihdkbihfgmpkcpnmlaoa" # teleparty
       "gmmnidkpkgiohfdoenhpghbilmeeagjj" # sci hub steals
       "mnjggcdmjocbbbhaepdhchncahnbgone" # sponsorblock for yt/inv
       "ailoabdmgclmfmhdagmlohpjlbpffblp" # surfshark vpn
     ];
 
-    commandLineArgs = ["--enable-features=UseOzonePlatform" "--ozone-platform=wayland"];
+    commandLineArgs = [
+      "--enable-features=VaapiVideoDecodeLinuxGL"
+      "--ignore-gpu-blocklist"
+      "--enable-zero-copy"
+    ];
   };
 }

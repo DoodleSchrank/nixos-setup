@@ -9,4 +9,5 @@
     temperature.night = 3000;
     tray = true;
   };
+  systemd.user.services.gammastep-indicator.unit.after = "graphical.target";
 }

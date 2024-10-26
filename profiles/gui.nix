@@ -53,6 +53,8 @@
       };
     };
   };
+  systemd.user.services.udiskie.unit.after = "graphical.target";
+  systemd.user.services.network-manager-applet.unit.after = "graphical.target";
 
   # fix xdg-open
   # https://github.com/NixOS/nixpkgs/issues/189851

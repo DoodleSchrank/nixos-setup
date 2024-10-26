@@ -117,4 +117,7 @@
       };
     };
   };
+  programs.chrome.commandLineArgs = [
+                        "--enable-features=UseOzonePlatform"
+                        "--ozone-platform=wayland" ];
 }
