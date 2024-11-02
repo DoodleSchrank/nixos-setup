@@ -136,7 +136,7 @@
       };
     };
   };
-  programs.chrome.commandLineArgs = [
+  programs.chromium.commandLineArgs = [
                         "--enable-features=UseOzonePlatform"
                         "--ozone-platform=wayland" ];
 }
