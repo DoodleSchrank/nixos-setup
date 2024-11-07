@@ -12,4 +12,5 @@
     ../user.nix
     ../laptop.nix
   ];
+  services.blueman.enable = true;
 }
