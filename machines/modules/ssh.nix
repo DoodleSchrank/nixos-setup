@@ -8,7 +8,5 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
     };
-    extraConfig = ''
-    '';
   };
 }

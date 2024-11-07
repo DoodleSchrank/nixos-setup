@@ -10,5 +10,6 @@
     ../gui.nix
     ../ci.nix
     ../user.nix
+    ../laptop.nix
   ];
 }

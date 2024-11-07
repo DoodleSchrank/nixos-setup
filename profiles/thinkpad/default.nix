@@ -21,6 +21,11 @@
 
     #displays
     kanshi
+
+    #specked gaming
+    lutris
+    gamemode
+    wineWowPackages.waylandFull
   ];
 
   # overrides of defaults
@@ -55,14 +60,15 @@
           profile.name = "work";
           profile.outputs = [{
               criteria = "eDP-1";
-              position = "0,1200";
+              position = "0,1440";
             } {
               criteria = "DP-7";
-              position = "1920,0";
-              transform = "270";
+              position = "1235,0";
+              mode = "2560x1440";
             } {
               criteria = "DP-8";
-              position = "0,0";
+              position = "3795,0";
+              mode = "2560x1440";
             }];
           profile.exec = [
             "${pkgs.sway}/bin/swaymsg workspace 1, move workspace to DP-8"

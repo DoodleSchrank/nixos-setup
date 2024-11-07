@@ -4,11 +4,11 @@
     #gaming
     steamtinkerlaunch
     lutris
+    gamemode
+    wineWowPackages.waylandFull
     prismlauncher
     linuxKernel.packages.linux_xanmod.xone
     r2mod_cli
-    gamemode
-    wineWowPackages.waylandFull
     flatpak
   ];
   systemd.user.services.steam = {

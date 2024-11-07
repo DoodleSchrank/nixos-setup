@@ -9,7 +9,9 @@
     ./custom-hw-conf.nix
     ../gui.nix
     ../ci.nix
+    ../gaming.nix
     ../user.nix
+    ../laptop.nix
   ];
   services.logrotate.checkConfig = false;
   environment.systemPackages = with pkgs; [

@@ -11,9 +11,6 @@
   boot.initrd.availableKernelModules = ["cryptd"];
 #  boot.initrd.kernelModules = [ "" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  boot.kernel.sysctl = {
-    "abi.vsyscall32" = 0;
-  };
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 

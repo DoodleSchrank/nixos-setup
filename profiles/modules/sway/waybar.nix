@@ -50,12 +50,12 @@
         network = {
           format = "{ipaddr}";
           format-disconnected = "Disconnected ⚠";
-          format-wifi = "{essid} ({signalStrength}%) ";
+          format-wifi = "{essid} ({ipaddr} | {signalStrength}%) ";
         };
         battery = {
           format = "{capacity}% {icon}";
           format-alt = "{time} {icon}";
-          format-charging = "{capacity}% ";
+          format-charging = "{capacity}% ⚡";
           format-icons = [ "" "" "" "" "" ];
           format-plugged = "{capacity}% ";
           states = {
