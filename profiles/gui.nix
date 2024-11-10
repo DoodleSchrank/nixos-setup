@@ -14,7 +14,7 @@
       nss = nss;
     })
     element-desktop
-    betterbird
+    thunderbird
     zoom-us
     telegram-desktop
     mattermost-desktop

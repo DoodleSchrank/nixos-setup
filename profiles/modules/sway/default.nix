@@ -94,10 +94,6 @@
         hideEdgeBorders = "both";
       };
       workspaceAutoBackAndForth = true;
-      workspaceOutputAssign = lib.mkOptionDefault[
-        {workspace = "1"; output = "DP-1";}
-        {workspace = "2"; output = "DP-3";}
-      ];
       startup = lib.mkOptionDefault [
         {command = "chromium"; }
         {command = "betterbird"; }
@@ -129,10 +125,6 @@
           r = "exec gromit-mpx --redo";
           p = "mode 'default'";
         };
-      };
-      keycodebindings = {
-        "272" = "exec gromit-mpx --redo";
-        "273" = "exec gromit-mpx --undo";
       };
     };
   };

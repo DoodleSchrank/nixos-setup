@@ -54,10 +54,22 @@
     "clock"
     "tray"
   ];
-  wayland.windowManager.sway.config.startup = lib.mkOptionDefault [
-    {command = "element-desktop"; }
-    {command = "discord"; }
-    {command = "mattermost-desktop"; }
-  ];
+  wayland.windowManager.sway.config = {
+    startup = lib.mkOptionDefault [
+      {command = "element-desktop"; }
+      {command = "discord"; }
+      {command = "mattermost-desktop"; }
+    ];
+
+    workspaceOutputAssign = [
+      {workspace = "1"; output = "DP-1";}
+      {workspace = "2"; output = "DP-3";}
+    ];
+
+    output = {
+      DP-1.pos = "0,0";
+      DP-2.pos = "2560,0";
+    };
+  };
 
 }
