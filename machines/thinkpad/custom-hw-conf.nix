@@ -26,7 +26,7 @@
     firewall.allowPing = true;
     firewall.allowedTCPPorts = [];
   };
-  powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
+  #powerManagement.cpuFreqGovernor = lib.mkDefault "performance";
   hardware.graphics = {
     enable = true;
     enable32Bit = true;
@@ -35,8 +35,6 @@
       vaapiVdpau
     ];
   };
-  hardware.opentabletdriver.enable = true;
-  hardware.opentabletdriver.daemon.enable = true;
   hardware.bluetooth.enable = true;
   hardware.bluetooth.powerOnBoot = true;
   services.hardware.bolt.enable = true;
