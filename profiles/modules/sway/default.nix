@@ -96,7 +96,7 @@
       workspaceAutoBackAndForth = true;
       startup = lib.mkOptionDefault [
         {command = "chromium"; }
-        {command = "betterbird"; }
+        {command = "thunderbird"; }
         {command = "warpinator"; }
 
         #https://discourse.nixos.org/t/open-links-from-flatpak-via-host-firefox/15465/11

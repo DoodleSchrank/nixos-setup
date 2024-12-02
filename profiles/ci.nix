@@ -3,6 +3,7 @@
   imports = [
     modules/vim.nix
     modules/zsh.nix
+    modules/ssh.nix
   ];
 
   home.username = "yannik";
