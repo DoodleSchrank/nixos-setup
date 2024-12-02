@@ -33,4 +33,8 @@
     };
     zsh.enable = true;
   };
+
+  home.sessionPath = [
+    "$HOME/.cargo/bin"
+  ];
 }

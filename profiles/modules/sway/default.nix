@@ -112,8 +112,8 @@
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert" =  ''exec ${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
-        "${modButton}+F3" = "exec light -U 10";
-        "${modButton}+F4" = "exec light -A 10";
+        "${modButton}+F3" = "exec light -U 2";
+        "${modButton}+F4" = "exec light -A 2";
       };
       modes = {
         drawing = {

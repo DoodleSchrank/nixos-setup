@@ -3,6 +3,7 @@
   pkgs,
   lib,
   inputs,
+  environment,
   ...
 }: {
   imports = [
@@ -49,5 +50,7 @@
       fi
     '';
    };
+
+   #environment.etc."cups/ppd/TSES6D_1.PPD".source = ./TSES6D_1.PPD;
 }
 
