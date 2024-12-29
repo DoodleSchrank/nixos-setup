@@ -30,6 +30,8 @@
     amdvlk
     vulkan-tools
     dxvk
+
+    eduvpn-client
   ];
 
   #xdg.mimeApps = {

@@ -27,6 +27,8 @@
     lutris
     gamemode
     wineWowPackages.waylandFull
+
+    eduvpn-client
   ];
 
   # overrides of defaults

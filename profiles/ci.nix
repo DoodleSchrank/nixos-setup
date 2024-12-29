@@ -22,6 +22,7 @@
     tree
     linuxKernel.packages.linux_xanmod_stable.cpupower
     dig
+    unrar
   ];
 
 

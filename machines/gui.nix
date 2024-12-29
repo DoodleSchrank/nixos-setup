@@ -10,6 +10,9 @@
       # required to get urls to open in browser
       # https://discourse.nixos.org/t/clicked-links-in-desktop-apps-not-opening-browers/29114/11
       xdg-utils
+
+      epsonscan2
+      epson-escpr2
     ];
   };
   xdg.portal = {
@@ -23,5 +26,9 @@
   };
   programs.dconf.enable = true;
   programs.light.enable = true;
+
+  # Scanning
+  hardware.sane.enable = true;
+  hardware.sane.extraBackends = [ pkgs.epsonscan2 ];
 
 }
