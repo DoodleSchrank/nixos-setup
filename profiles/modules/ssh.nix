@@ -30,6 +30,10 @@
         identityFile = "/home/yannik/.ssh/id_ed25519.pub";
         forwardX11 = true;
       };
+      gambit = {
+        user = "uzud41uz";
+        hostname = "gambit.cs.ovgu.de";
+      };
     };
   };
 }
