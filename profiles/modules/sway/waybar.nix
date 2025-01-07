@@ -1,5 +1,8 @@
 {pkgs, lib, ...}:
 {
+  home.packages = with pkgs; [
+    headsetcontrol
+  ];
   programs.waybar = {
     enable = true;
     style = ''
@@ -35,6 +38,7 @@
           "network"
           "cpu"
           "memory"
+          "custom/proXbattery"
           "battery"
           "clock"
           "tray"
@@ -64,6 +68,11 @@
           };
         };
         "sway/mode" = { format = ''<span style="italic">{}</span>''; };
+        "custom/proXbattery" = {
+          format = "proX {} ";
+          exec = "sudo ${pkgs.headsetcontrol}/bin/headsetcontrol -b | grep Level: | sed 's/^.*Level: //'";
+          #return-type = "json";
+        };
       };
     };
   };

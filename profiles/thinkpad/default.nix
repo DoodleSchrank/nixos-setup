@@ -65,6 +65,27 @@
               criteria = "eDP-1";
               position = "0,1440";
             } {
+              criteria = "DP-8";
+              position = "1235,0";
+              mode = "2560x1440";
+            } {
+              criteria = "DP-7";
+              position = "3795,0";
+              mode = "2560x1440";
+            }];
+          profile.exec = [
+            "${pkgs.sway}/bin/swaymsg workspace 1, move workspace to DP-8"
+            "${pkgs.sway}/bin/swaymsg workspace 2, move workspace to DP-8"
+            "${pkgs.sway}/bin/swaymsg workspace 3, move workspace to eDP-1"
+            "${pkgs.sway}/bin/swaymsg workspace 4, move workspace to DP-7"
+          ];
+        }
+        {
+          profile.name = "work2";
+          profile.outputs = [{
+              criteria = "eDP-1";
+              position = "0,1440";
+            } {
               criteria = "DP-10";
               position = "1235,0";
               mode = "2560x1440";
