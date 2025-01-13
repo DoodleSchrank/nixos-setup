@@ -14,4 +14,6 @@
     ../gaming.nix
     ../user.nix
   ];
+
+  services.solaar.enable = true;
 }

@@ -1,5 +1,10 @@
-{pkgs, ...}:
+{pkgs, inputs, config, pkgsOld, ...}:
 {
+  _module.args.pkgsOld = import inputs.nixpkgs-old {
+    inherit (pkgs.stdenv.hostPlatform) system;
+    inherit (config.nixpkgs) config;
+  };
+
   imports = [
     modules/wayland.nix
   ];
@@ -10,6 +15,7 @@
       # required to get urls to open in browser
       # https://discourse.nixos.org/t/clicked-links-in-desktop-apps-not-opening-browers/29114/11
       xdg-utils
+      (pkgsOld.pavucontrol)
 
       epsonscan2
       epson-escpr2

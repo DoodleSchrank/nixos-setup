@@ -1,4 +1,4 @@
-{pkgs, ...}:
+{ inputs, config, pkgs, pkgsOld, ...}:
 {
   imports = [
     modules/alacritty.nix
@@ -27,7 +27,6 @@
     yt-dlp
 
     #other gui tools
-    pavucontrol
     libreoffice
     android-file-transfer
     warpinator

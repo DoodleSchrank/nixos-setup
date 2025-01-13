@@ -10,7 +10,9 @@
     enable = true;
     theme = {
       name = "BlackAndWhite";
+      #name = "Flat-Remix-GTK-Black-Light-Solid";
       package = pkgs.custom-packages.blackandwhite-gtk;
+      #package = pkgs.flat-remix-gtk;
     };
     iconTheme = {
       name = "rose-pine";

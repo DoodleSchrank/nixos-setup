@@ -115,7 +115,7 @@
         "${modButton}+F3" = "exec light -U 2";
         "${modButton}+F4" = "exec light -A 2";
       };
-      modes = {
+      modes = lib.mkOptionDefault {
         drawing = {
           t = "exec gromit-mpx --toggle";
           c = "exec gromit-mpx --clear";
