@@ -32,6 +32,7 @@
     warpinator
     udiskie
     firefox
+    zotero
 
     #file browser
     nemo

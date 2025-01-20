@@ -21,7 +21,7 @@
       thinkpad = {
         user = "yannik";
         port = 25560;
-        hostname = "192.168.178.20";
+        hostname = "192.168.178.39";
       };
       levante = {
         user = "k203175";

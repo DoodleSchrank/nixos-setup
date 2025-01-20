@@ -49,6 +49,8 @@
   # overrides of defaults
   programs.git.userEmail = "y.koenneker@web.de";
   programs.zsh.shellAliases.rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#pc' |& sudo nom";
+
+
   programs.waybar.settings.mainbar.modules-right = lib.mkForce [
     "network"
     "cpu"
@@ -73,5 +75,4 @@
       DP-3.pos = "2560,0";
     };
   };
-
 }
