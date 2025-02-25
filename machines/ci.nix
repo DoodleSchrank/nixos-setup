@@ -57,11 +57,11 @@
     noto-fonts-cjk-sans
     noto-fonts-emoji
     dejavu_fonts
-    (nerdfonts.override { fonts = [
-            "FiraCode" "DroidSansMono" "SpaceMono"
-            "JetBrainsMono"
-            "DejaVuSansMono"
-          ]; })
+    nerdfonts.FiraCode
+    nerdfonts.DroidSansMono
+    nerdfonts.SpaceMono
+    nerdfonts.JetBrainsMono
+    nerdfonts.DejaVuSansMono
   ];
   programs.zsh.enable = true;
   services = {

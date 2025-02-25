@@ -22,7 +22,7 @@
 
     #media
     feh
-    okular
+    kdePackages.okular
     vlc
     yt-dlp
 

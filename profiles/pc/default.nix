@@ -58,6 +58,7 @@
     "clock"
     "tray"
   ];
+
   wayland.windowManager.sway.config = {
     startup = lib.mkOptionDefault [
       {command = "element-desktop"; }
@@ -73,6 +74,9 @@
     output = {
       DP-1.pos = "0,0";
       DP-3.pos = "2560,0";
+    };
+    keybindings = lib.mkOptionDefault {
+      "Mod1+Shift+G" = "mode 'gaming'";
     };
   };
 }

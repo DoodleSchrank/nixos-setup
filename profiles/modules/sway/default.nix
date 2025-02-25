@@ -125,6 +125,9 @@
           r = "exec gromit-mpx --redo";
           p = "mode 'default'";
         };
+        gaming = {
+          "${modButton}+Shift+G" = "mode 'default'";
+        };
       };
     };
   };
