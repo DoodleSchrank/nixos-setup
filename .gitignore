@@ -1,1 +1,4 @@
 /.idea/
+
+# Local planning notes (wayfinder map and tickets); describe the live server, kept out of the public repo
+.scratch/
