@@ -61,7 +61,7 @@
   dataDisk = pkgs.runCommand "optiplex-data-disk.img" {nativeBuildInputs = [pkgs.e2fsprogs];} ''
     mkdir -p seed/state/marker-dir
     echo data-disk-untouched > seed/state/marker-dir/marker
-    truncate -s 256M $out
+    truncate -s 1G $out
     mkfs.ext4 -q -F -E root_owner=0:0 -U 70ca9b25-a1cd-46fa-bcbd-66780935c999 -L tbssd -d seed $out
   '';
 

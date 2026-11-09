@@ -49,6 +49,9 @@ gen_value() {
       ssh-keygen -q -t ed25519 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
     *ssh_host_rsa_key|*host_rsa_key)
       ssh-keygen -q -t rsa -b 2048 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
+    rsa_key)
+      # Vaultwarden's rsa_key.pem: a PKCS#1 RSA private key ("BEGIN RSA PRIVATE KEY")
+      openssl genrsa -traditional 2048 2>/dev/null ;;
     *signing_key|*signing.key)
       # Synapse signing key: "<algorithm> <version> <unpadded base64 of 32 bytes>"
       printf 'ed25519 atest %s\n' "$(head -c 32 /dev/urandom | base64 -w0 | tr -d '=')" ;;

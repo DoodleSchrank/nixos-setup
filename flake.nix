@@ -150,6 +150,7 @@
     in {
       optiplex-vm = import ./tests/optiplex/vm.nix { inherit pkgs inputs optiplexModules; };
       optiplex-install = import ./tests/optiplex/install.nix { inherit pkgs inputs optiplexModules; };
+      optiplex-databases = import ./tests/optiplex/databases.nix { inherit pkgs inputs; };
     };
   };
 }

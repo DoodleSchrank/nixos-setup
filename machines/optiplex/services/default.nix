@@ -5,6 +5,10 @@
   imports = [
     ./blocky.nix
     ./caddy.nix
+    ./databases.nix
     ./ddns.nix
+    ./transmission.nix
+    ./nfs.nix
+    ./vaultwarden.nix
   ];
 }
