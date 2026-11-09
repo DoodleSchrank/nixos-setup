@@ -1,10 +1,5 @@
-{pkgs, inputs, config, pkgsOld, ...}:
+{pkgs, inputs, config, ...}:
 {
-  _module.args.pkgsOld = import inputs.nixpkgs-old {
-    inherit (pkgs.stdenv.hostPlatform) system;
-    inherit (config.nixpkgs) config;
-  };
-
   imports = [
     modules/wayland.nix
   ];
@@ -15,7 +10,7 @@
       # required to get urls to open in browser
       # https://discourse.nixos.org/t/clicked-links-in-desktop-apps-not-opening-browers/29114/11
       xdg-utils
-      (pkgsOld.pavucontrol)
+      pavucontrol
 
       epsonscan2
       epson-escpr2
@@ -31,7 +26,8 @@
     };
   };
   programs.dconf.enable = true;
-  programs.light.enable = true;
+  # backlight control for the video group (replaces the removed programs.light)
+  services.udev.packages = [pkgs.brightnessctl];
 
   # Scanning
   hardware.sane.enable = true;

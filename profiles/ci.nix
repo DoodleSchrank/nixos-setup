@@ -8,7 +8,6 @@
 
   home.username = "yannik";
   home.stateVersion = "24.11";
-  nixpkgs.config.allowUnfree = true;
 
   home.packages = with pkgs; [
     #nix
@@ -30,7 +29,7 @@
     home-manager.enable = true;
     git = {
       enable = true;
-      userName = "Yannik Könneker";
+      settings.user.name = "Yannik Könneker";
     };
     zsh.enable = true;
   };

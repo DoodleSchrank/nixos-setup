@@ -20,7 +20,7 @@
     wl-clipboard
 
     # backlight
-    light
+    brightnessctl
 
     networkmanagerapplet
   ];
@@ -112,8 +112,8 @@
       ];
       keybindings = lib.mkOptionDefault {
         "${modButton}+Insert" =  ''exec ${pkgs.grim}/bin/grim -g "$(${pkgs.slurp}/bin/slurp -d)" - | ${pkgs.wl-clipboard}/bin/wl-copy'';
-        "${modButton}+F3" = "exec light -U 2";
-        "${modButton}+F4" = "exec light -A 2";
+        "${modButton}+F3" = "exec brightnessctl set 2%-";
+        "${modButton}+F4" = "exec brightnessctl set +2%";
       };
       modes = lib.mkOptionDefault {
         drawing = {

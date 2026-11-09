@@ -43,7 +43,7 @@
     enable32Bit = true;
     extraPackages = with pkgs; [
       libva
-      vaapiVdpau
+      libva-vdpau-driver
     ];
   };
   hardware.bluetooth.enable = true;

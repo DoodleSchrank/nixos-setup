@@ -1,8 +1,10 @@
 {
   services.mako = {
     enable = true;
-    anchor = "top-right";
-    backgroundColor = "#00000088";
-    defaultTimeout = 2500;
+    settings = {
+      anchor = "top-right";
+      background-color = "#00000088";
+      default-timeout = 2500;
+    };
   };
 }

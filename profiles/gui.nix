@@ -1,4 +1,4 @@
-{ inputs, config, pkgs, pkgsOld, ...}:
+{ inputs, config, pkgs, ...}:
 {
   imports = [
     modules/alacritty.nix
@@ -11,7 +11,6 @@
     (pkgs.discord.override {
       withOpenASAR = true;
       withVencord = true;
-      nss = nss;
     })
     element-desktop
     thunderbird
@@ -32,7 +31,6 @@
     warpinator
     udiskie
     firefox
-    zotero
 
     #file browser
     nemo

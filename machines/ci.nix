@@ -21,6 +21,7 @@
   };
 
   nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.android_sdk.accept_license = true;
   nix.settings.experimental-features = ["nix-command" "flakes"];
 
   environment.localBinInPath = true;
@@ -55,13 +56,11 @@
   fonts.packages = with pkgs; [
     noto-fonts
     noto-fonts-cjk-sans
-    noto-fonts-emoji
+    noto-fonts-color-emoji
     dejavu_fonts
-    nerdfonts.FiraCode
-    nerdfonts.DroidSansMono
-    nerdfonts.SpaceMono
-    nerdfonts.JetBrainsMono
-    nerdfonts.DejaVuSansMono
+    nerd-fonts.fira-code
+    nerd-fonts.jetbrains-mono
+    nerd-fonts.dejavu-sans-mono
   ];
   programs.zsh.enable = true;
   services = {

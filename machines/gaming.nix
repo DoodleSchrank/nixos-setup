@@ -6,7 +6,7 @@
   environment = {
     pathsToLink = ["/libexec"];
     systemPackages = with pkgs; [
-      inputs.umu.packages.${pkgs.system}.umu-launcher
+      umu-launcher
     ];
   };
   services.flatpak.enable = true;

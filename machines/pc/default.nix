@@ -15,5 +15,5 @@
     ../user.nix
   ];
 
-  services.solaar.enable = true;
+  programs.solaar.enable = true;
 }

@@ -45,9 +45,7 @@
     extraPackages = with pkgs; [
       rocmPackages.clr.icd
       libva
-      amdvlk
-      libva
-      vaapiVdpau
+      libva-vdpau-driver
     ];
     extraPackages32 = with pkgs; [
       rocmPackages.clr.icd

@@ -3,10 +3,14 @@
   home.packages = with pkgs; [
     #programming
     jdk
-    jetbrains.idea-ultimate
+    jetbrains.idea
     jetbrains.clion
     jetbrains.rider
-    jetbrains.rust-rover
+    #jetbrains.rust-rover
+    android-studio
+    flutter
+    android-tools
+    sdkmanager
 
     mono
     dotnetCorePackages.sdk_9_0

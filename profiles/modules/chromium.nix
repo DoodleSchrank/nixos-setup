@@ -1,6 +1,5 @@
 {pkgs, config, ...}: {
-  nixpkgs.config.packageOverrides = pkgs: {
-    chromium = pkgs.chromium.override {
+  programs.chromium.package = pkgs.chromium.override {
       enableWideVine = true;
       commandLineArgs = [
         "--enable-features=UseOzonePlatform"
@@ -9,7 +8,6 @@
         "--ignore-gpu-blocklist"
         "--enable-zero-copy"
       ];
-    };
   };
   programs.chromium = {
     enable = true;

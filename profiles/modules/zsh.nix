@@ -21,7 +21,7 @@
       plugins = ["sudo" "colorize" "colored-man-pages" "dirhistory" "extract"];
       theme = "robbyrussell";
     };
-    initExtra = ''
+    initContent = ''
       eval "$(direnv hook zsh)"
     '';
   };

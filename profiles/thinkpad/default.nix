@@ -32,7 +32,7 @@
   ];
 
   # overrides of defaults
-  programs.git.userEmail = "yannik.koenneker@ovgu.de";
+  programs.git.settings.user.email = "yannik.koenneker@ovgu.de";
   programs.zsh.shellAliases.rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#thinkpad' |& sudo nom";
   wayland.windowManager.sway.config = {
     startup = lib.mkOptionDefault [

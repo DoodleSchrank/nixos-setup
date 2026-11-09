@@ -15,19 +15,11 @@
     ../gaming.nix
     ../programming.nix
   ];
-
   home.packages = with pkgs; [
     #drawing
     krita
 
-    #programming
-    android-studio
-    flutter
-    android-tools
-    sdkmanager
-
-    #amd
-    amdvlk
+    #amd (amdvlk was removed upstream; RADV is the default Vulkan driver)
     vulkan-tools
     dxvk
 
@@ -47,7 +39,7 @@
   #};
 
   # overrides of defaults
-  programs.git.userEmail = "y.koenneker@web.de";
+  programs.git.settings.user.email = "y.koenneker@web.de";
   programs.zsh.shellAliases.rebuild = "sudo nixos-rebuild switch --flake '/home/yannik/nixos-setup#pc' |& sudo nom";
 
 
