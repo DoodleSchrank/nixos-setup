@@ -1,0 +1,19 @@
+# Pi-hole exact-allow (type 0) and regex-allow (type 2) entries, enabled. Same blocky group (ads) as the denylists, so allow wins.
+t.ly
+www.bit.ly
+bit.ly
+ow.ly
+tinyurl.com
+cdn.optimizely.com
+s.shopify.com
+trackersimulator.org
+eviltracker.net
+unagi-na.amazon.com
+fls-eu.amazon.com
+assets.adobedtm.com
+link.vueling.com
+alb.reddit.com
+e.reddit.com
+w3-reporting.reddit.com
+static.datadoghq.com
+/(\.|^)opti\.plex$/

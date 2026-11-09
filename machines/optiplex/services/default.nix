@@ -3,5 +3,8 @@
 # ticket deletes its draft when it writes the real file. Nothing there is imported.
 {
   imports = [
+    ./blocky.nix
+    ./caddy.nix
+    ./ddns.nix
   ];
 }

@@ -1,0 +1,14 @@
+# Pi-hole exact-deny entries (gravity.db domainlist type 1, enabled). blocky also blocks subdomains of an entry.
+dlg.io.mi.com
+cn.ot.io.mi.com
+m.video.xiaomi.com
+account.ai.xiaomi.com
+tracker-preview.ai.xiaomi.com
+cloudcontrol-preview.ai.xiaomi.com
+www.msftconnecttest.com
+ipv6.msftconnecttest.com
+optimizationguide-pa.googleapis.com
+fd.api.iris.microsoft.com
+www.facebook.com
+fls-eu.amazon.de
+# disabled in Pi-hole (enabled = 0), not carried: security.iot.i.tplinknbu.com
