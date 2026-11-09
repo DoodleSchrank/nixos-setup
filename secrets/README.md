@@ -21,6 +21,7 @@ One file per service, mirroring `machines/optiplex/services/<service>.nix`: `opt
 
 Present so far:
 - `optiplex/restic.yaml`: off-site Backup bucket and repository password. See `infra/scaleway/README.md`.
+- `optiplex/host.yaml`: `yannik_password_hash`, yannik's console password (hash from `nix shell nixpkgs#mkpasswd -c mkpasswd -m yescrypt`). If the file is missing, the build only warns and there is no console login.
 
 ## Recipes
 
