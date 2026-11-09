@@ -8,6 +8,7 @@
 #   networking.nix  networkd, initrd unlock network, resolver, nftables
 #   storage.nix     Data disk mount and the /state bind mount
 #   monitoring.nix  notify-failure@ (OnFailure for all services) and smartd
+#   vm-test.nix     optiplex.vmTest.* plug-in seam of the VM test harness (inert outside tests)
 #   services/       one file per Kept service, listed in services/default.nix
 {
   config,
@@ -26,6 +27,7 @@ in {
     ./networking.nix
     ./storage.nix
     ./monitoring.nix
+    ./vm-test.nix
     ./services
   ];
 

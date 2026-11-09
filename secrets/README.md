@@ -22,6 +22,16 @@ One file per service, mirroring `machines/optiplex/services/<service>.nix`: `opt
 Present so far:
 - `optiplex/restic.yaml`: off-site Backup bucket and repository password. See `infra/scaleway/README.md`.
 - `optiplex/host.yaml`: `yannik_password_hash`, yannik's console password (hash from `nix shell nixpkgs#mkpasswd -c mkpasswd -m yescrypt`). If the file is missing, the build only warns and there is no console login.
+- `optiplex/caddy.yaml` (not created yet): `porkbun_api_key`, `porkbun_secret_api_key`, carried from the Arch box's `.certbot-creds.ini`. Read by the Edge (`services/caddy.nix`: lego/ACME and the DDNS updater). If the file is missing, the build only warns and ACME and DDNS have no credentials.
+
+## Test mirror (VM tests)
+
+`secrets/test/optiplex/` mirrors every file of `secrets/optiplex/` with made-up values, encrypted only to the committed, public test age key `secrets/test/age-key.txt` (rule `test/optiplex/` in `.sops.yaml`, which must stay above the `optiplex/` rule). The VM tests point `optiplex.secretsDir` at it. Regenerate after adding or changing a real file (only key names are read, nothing is decrypted):
+```sh
+tests/optiplex/gen-test-secrets.sh          # writes the mirror
+tests/optiplex/gen-test-secrets.sh --check  # fails when a real file or key has no counterpart
+```
+A typed secret (PEM, signing key, YAML) needs a case in the generator map of that script, otherwise the dummy has the wrong format.
 
 ## Recipes
 
