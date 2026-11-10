@@ -92,6 +92,71 @@ restic snapshots
 restic restore latest --target ./restore
 ```
 
+## The pre-Cutover gate
+
+The Cutover does not start until a manual restic run from the Arch box has been restored in the VM
+harness. The same repository is then used by the NixOS timer, so nothing is thrown away. Scripts:
+`arch-gate.sh` (the run) and `gate-verify.sh` (the check of a restored snapshot). The NixOS side is
+`machines/optiplex/services/restic.nix`.
+
+Before the run: put the final elabFTW export into `/mnt/tbssd/archive/elabftw/` on Arch (it is carried by
+the NixOS job afterwards, when retention has aged the gate snapshot out).
+
+### Making the env file
+
+On the PC (needs your age key), straight into a root-only file on Arch, never into the repo:
+
+```sh
+sops -d --output-type json secrets/optiplex/restic.yaml \
+  | jq -r '"RESTIC_REPOSITORY=s3:\(.s3_endpoint)/\(.s3_bucket)\nRESTIC_PASSWORD=\(.repository_password)\nAWS_ACCESS_KEY_ID=\(.s3_access_key_id)\nAWS_SECRET_ACCESS_KEY=\(.s3_secret_access_key)\nAWS_DEFAULT_REGION=\(.s3_region)"' \
+  | ssh optiplex 'sudo install -m 0600 /dev/stdin /root/restic-gate.env'
+```
+
+Check the first line on the Arch side (`sudo head -1 /root/restic-gate.env`): it must read
+`RESTIC_REPOSITORY=s3:https://s3.fr-par.scw.cloud/nnik-optiplex-restic`. `s3_endpoint` has to carry the
+scheme, or restic assumes https for a bare host name; both work. The script deletes the file when it ends.
+
+### The run
+
+On Arch, as root, from a checkout of this repository (restic, sqlite3 and the PostgreSQL 18 client from pacman):
+
+```sh
+sudo infra/scaleway/arch-gate.sh --env-file /root/restic-gate.env --init --dry-run   # what it would do
+sudo infra/scaleway/arch-gate.sh --env-file /root/restic-gate.env --init             # first run: creates the repository
+```
+
+Later runs leave out `--init`; the Cutover runbook runs it with `--final` (the dump script then refuses while a
+consumer container is running). Without `--init` the script refuses a repository that does not answer, so a typo in
+the URL can never create a second repository.
+
+Then confirm the storage class: new objects must show "One Zone" (console: Object Storage, bucket, any object under
+`data/`), or
+
+```sh
+aws --endpoint-url https://s3.fr-par.scw.cloud s3api head-object --bucket nnik-optiplex-restic --key data/<xx>/<id>
+# "StorageClass": "ONEZONE_IA"
+```
+
+If it says `STANDARD`, stop: the `-o s3.storage-class=ONEZONE_IA` option did not reach restic.
+
+### The restore check
+
+In the VM (or on the PC) with the same credentials; the dump directory is verified by its own MANIFEST:
+
+```sh
+restic snapshots --tag arch-gate
+restic restore <snapshot id> --target /mnt/tbssd/gate-restore
+infra/scaleway/gate-verify.sh /mnt/tbssd/gate-restore          # checksums, SQLite integrity, file counts, dump MANIFEST
+optiplex-db-restore /mnt/tbssd/gate-restore/<dump directory printed by gate-verify>   # on optiplex-restore: all 8 databases
+```
+
+State placement from the restored tree is the service tickets' job (their restore steps in the Cutover runbook); the
+gate proves that every byte is in the bucket and reads back, and that the dumps load.
+
+The NixOS job has its own, complete restore: `optiplex-backup-restore --help` (State, dumps, SQLite copies, host
+keys, then the database restore). The VM test `optiplex-vm` rehearses it on every run (check `zz-backup-restore`); the
+yearly drill is the same command on a fresh `optiplex-restore` install.
+
 ## Gotchas
 
 - **Storage class.** At Scaleway, the S3 class `STANDARD` means Multi-AZ, which costs twice as much. One Zone is `ONEZONE_IA`. The bucket has no default class, so restic must set it on every upload: `-o s3.storage-class=ONEZONE_IA` (NixOS: `services.restic.backups.<name>.extraOptions`). Check under Object Storage → bucket → objects that new objects show "One Zone".

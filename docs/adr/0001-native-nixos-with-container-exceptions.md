@@ -13,6 +13,6 @@ The Optiplex runs every Kept service natively under NixOS, with no Docker daemon
 
 ## Consequences
 
-- Podman is on the host, so the Gitea Actions runners may use it as well (ticket 23).
+- Podman is on the host for Seafile only. The Gitea Actions runners do not use the host's podman. They run in two `microvm.nix` VMs, split by trust, each with its own podman, so job containers never share the host's container runtime (Gitea runner backend and trust model).
 - Container-only services still keep their State under `/state/<service>` and use the shared native database server where the image allows it.
 - The same exception is available to any other container-only service (elabFTW was considered in ticket 18 and retired instead); extend this ADR rather than adding silent exceptions.

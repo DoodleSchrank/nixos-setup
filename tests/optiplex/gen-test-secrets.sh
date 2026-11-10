@@ -43,8 +43,17 @@ gen_value() {
   local file="$1" key="$2"
   case "$key" in
     *password_hash)
-      # hash of the password "test" (console login in VM tests)
-      openssl passwd -6 -salt testsalt test ;;
+      case "$file" in
+        ntfy.yaml)
+          # ntfy wants bcrypt: hash of the password "test" (made with `htpasswd -nbBC 10 x test`)
+          echo '$2y$10$ztHQaYkIMXiwABM2EcOZvOL.jJBgQZmN4Q2U1kk.L/8BIi1N.X5Ri' ;;
+        *)
+          # hash of the password "test" (console login in VM tests)
+          openssl passwd -6 -salt testsalt test ;;
+      esac ;;
+    publisher_token)
+      # ntfy access token: "tk_" + 29 characters of [a-z0-9]
+      printf 'tk_%s\n' "$(head -c 64 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 29)" ;;
     *ssh_host_ed25519_key|*host_ed25519_key)
       ssh-keygen -q -t ed25519 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
     *ssh_host_rsa_key|*host_rsa_key)
