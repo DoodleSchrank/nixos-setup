@@ -7,6 +7,8 @@
     ./caddy.nix
     ./databases.nix
     ./ddns.nix
+    ./etesync.nix
+    ./homeassistant.nix
     ./transmission.nix
     ./nfs.nix
     ./vaultwarden.nix

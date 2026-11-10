@@ -52,6 +52,13 @@ gen_value() {
     rsa_key)
       # Vaultwarden's rsa_key.pem: a PKCS#1 RSA private key ("BEGIN RSA PRIVATE KEY")
       openssl genrsa -traditional 2048 2>/dev/null ;;
+    secrets_yaml)
+      # Home Assistant's secrets.yaml: a YAML mapping
+      printf 'test_secret: test%s\n' "$(head -c 14 /dev/urandom | od -An -tx1 | tr -d ' \n')" ;;
+    dav_htpasswd)
+      # etesync-dav's htpaswd (Radicale "plain" encryption): one "user:password" line. The VM test
+      # signs up the Etebase user `testuser` and logs in to DAV with this password.
+      echo "testuser:testpassword1234" ;;
     *signing_key|*signing.key)
       # Synapse signing key: "<algorithm> <version> <unpadded base64 of 32 bytes>"
       printf 'ed25519 atest %s\n' "$(head -c 32 /dev/urandom | base64 -w0 | tr -d '=')" ;;

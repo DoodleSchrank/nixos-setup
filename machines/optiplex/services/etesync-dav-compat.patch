@@ -1,0 +1,132 @@
+diff --color -ruN pa/etesync_dav/local_cache/__init__.py pb/etesync_dav/local_cache/__init__.py
+--- pa/etesync_dav/local_cache/__init__.py	2026-11-10 10:17:11.006214191 +0100
++++ pb/etesync_dav/local_cache/__init__.py	2026-11-10 10:17:11.017265722 +0100
+@@ -62,7 +62,7 @@
+             self.user, created = models.User.get_or_create(username=self.username)
+ 
+     def _init_db(self, db_path):
+-        from playhouse.sqlite_ext import SqliteExtDatabase
++        from peewee import SqliteDatabase as SqliteExtDatabase
+ 
+         directory = os.path.dirname(db_path)
+         if directory != "" and not os.path.exists(directory):
+diff --color -ruN pa/etesync_dav/radicale/rights.py pb/etesync_dav/radicale/rights.py
+--- pa/etesync_dav/radicale/rights.py	2026-11-10 10:17:11.006370121 +0100
++++ pb/etesync_dav/radicale/rights.py	2026-11-10 10:17:11.017300512 +0100
+@@ -19,7 +19,8 @@
+ 
+ 
+ class Rights(rights.BaseRights):
+-    def authorization(self, user, path):
++    def authorization(self, user, *args):
++        path = args[-1]
+         if not user:
+             return ""
+ 
+diff --color -ruN pa/etesync_dav/radicale/storage.py pb/etesync_dav/radicale/storage.py
+--- pa/etesync_dav/radicale/storage.py	2026-11-10 10:17:11.006388451 +0100
++++ pb/etesync_dav/radicale/storage.py	2026-11-10 10:24:00.070768169 +0100
+@@ -12,6 +12,7 @@
+ # You should have received a copy of the GNU General Public License
+ # along with this program. If not, see <http://www.gnu.org/licenses/>.
+ 
++import email.utils
+ import hashlib
+ import logging
+ import posixpath
+@@ -397,7 +398,7 @@
+                 item.add("fn").value = str(item.n)
+         except Exception as e:
+             raise RuntimeError("Failed to parse item %r in %r" % (href, self.path)) from e
+-        last_modified = ""
++        last_modified = email.utils.formatdate(usegmt=True)  # Radicale >= 3.5 asserts it is not empty
+ 
+         return EteSyncItem(
+             collection=self, vobject_item=item, href=href, last_modified=last_modified, etesync_item=etesync_item
+@@ -421,7 +422,7 @@
+             href_mapper = HrefMapper(content=etesync_item._cache_obj, href=href)
+             href_mapper.save(force_insert=True)
+ 
+-        return self._get(href)
++        return (self._get(href), None)
+ 
+     def delete(self, href=None):
+         """Delete an item.
+diff --color -ruN pa/etesync_dav/radicale/storage_etebase_collection.py pb/etesync_dav/radicale/storage_etebase_collection.py
+--- pa/etesync_dav/radicale/storage_etebase_collection.py	2026-11-10 10:17:11.006408601 +0100
++++ pb/etesync_dav/radicale/storage_etebase_collection.py	2026-11-10 10:24:00.070897559 +0100
+@@ -1,3 +1,4 @@
++import email.utils
+ import re
+ 
+ import vobject
+@@ -272,7 +273,7 @@
+                     item.contents["version"][0].value = "3.0"
+         except Exception as e:
+             raise RuntimeError("Failed to parse item %r in %r" % (href, self.path)) from e
+-        last_modified = ""
++        last_modified = email.utils.formatdate(usegmt=True)  # Radicale >= 3.5 asserts it is not empty
+ 
+         return EteSyncItem(
+             collection=self, vobject_item=item, href=href, last_modified=last_modified, etesync_item=etesync_item
+@@ -294,7 +295,7 @@
+             href_mapper = HrefMapper(content=etesync_item.cache_item, href=href)
+             href_mapper.save(force_insert=True)
+ 
+-        return self._get(href)
++        return (self._get(href), None)
+ 
+     def delete(self, href=None):
+         """Delete an item.
+@@ -328,8 +329,13 @@
+         if key is None:
+             ret = {}
+             meta = self.collection.meta
+-            for key in meta.keys():
+-                ret[key] = self.meta_mappings.map_get(meta, key)[1]
++            # Radicale >= 3.5 turns every key into a PROPFIND property and fails on keys without a
++            # namespace prefix (Etebase's own "name", "mtime", ...): return the mapped properties only.
++            for rkey, (ekey, _, _) in self.meta_mappings._mappings.items():
++                if ":" in rkey and meta.get(ekey) is not None:
++                    ret[rkey] = meta.get(ekey)
++            if "tag" in meta:
++                ret["tag"] = meta["tag"]
+             return ret
+         else:
+             meta = self.collection.meta
+diff --color -ruN pa/etesync_dav/radicale/web.py pb/etesync_dav/radicale/web.py
+--- pa/etesync_dav/radicale/web.py	2026-11-10 10:17:11.006424681 +0100
++++ pb/etesync_dav/radicale/web.py	2026-11-10 10:21:46.166240963 +0100
+@@ -31,10 +31,11 @@
+             environ["wsgi.url_scheme"] = "https"
+         body = list(app(environ, start_response))[0]
+         ret_response.append(body)
++        ret_response.append(None)  # xml_request (Radicale >= 3.5.10)
+         return tuple(ret_response)
+ 
+-    def get(self, environ, base_prefix, path, user):
++    def get(self, environ, base_prefix, path, user, *args, **kwargs):
+         return self._call(environ, base_prefix, path, user)
+ 
+-    def post(self, environ, base_prefix, path, user):
++    def post(self, environ, base_prefix, path, user, *args, **kwargs):
+         return self._call(environ, base_prefix, path, user)
+diff --color -ruN pa/etesync_dav/radicale_main/server.py pb/etesync_dav/radicale_main/server.py
+--- pa/etesync_dav/radicale_main/server.py	2026-11-10 10:17:11.006469371 +0100
++++ pb/etesync_dav/radicale_main/server.py	2026-11-10 10:21:46.166328633 +0100
+@@ -53,13 +53,13 @@
+ 
+ 
+ class MyApplication(Application):
+-    def do_POST(self, environ, base_prefix, path, user, remote_host="", user_agent=""):
++    def do_POST(self, environ, base_prefix, path, user, *args, **kwargs):
+         """Manage POST request."""
+         # Dispatch .web URL to web module
+         if path == "/.web" or path.startswith("/.web/"):
+             return self._web.post(environ, base_prefix, path, user)
+ 
+-        return super().do_POST(environ, base_prefix, path, user, remote_host, user_agent)
++        return super().do_POST(environ, base_prefix, path, user, *args, **kwargs)
+ 
+ 
+ def format_address(address):

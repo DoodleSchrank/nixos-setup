@@ -22,6 +22,8 @@ One file per service, mirroring `machines/optiplex/services/<service>.nix`: `opt
 Present so far:
 - `optiplex/restic.yaml`: off-site Backup bucket and repository password. See `infra/scaleway/README.md`.
 - `optiplex/host.yaml`: `yannik_password_hash`, yannik's console password (hash from `nix shell nixpkgs#mkpasswd -c mkpasswd -m yescrypt`). If the file is missing, the build only warns and there is no console login.
+- `optiplex/etesync.yaml` (not created yet): `secret_key` (content of the Etebase `secret.txt`) and `dav_htpasswd` (content of etesync-dav's `htpaswd`, `user:password`), carried from the Arch box. Read by `services/etesync.nix`; the creation command is in the build warning and the file's header. If the file is missing, the build only warns and neither EteSync unit starts.
+- `optiplex/homeassistant.yaml` (not created yet): `secrets_yaml`, the whole `/srv/homeassistant/secrets.yaml` from the Arch box. Read by `services/homeassistant.nix`, which links it into the config dir; the creation command is in the build warning. If the file is missing, the build only warns and Home Assistant runs without a secrets.yaml (nothing references it today).
 - `optiplex/caddy.yaml` (not created yet): `porkbun_api_key`, `porkbun_secret_api_key`, carried from the Arch box's `.certbot-creds.ini`. Read by the Edge (`services/caddy.nix`: lego/ACME and the DDNS updater). If the file is missing, the build only warns and ACME and DDNS have no credentials.
 
 ## Test mirror (VM tests)
