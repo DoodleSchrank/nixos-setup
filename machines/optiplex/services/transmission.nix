@@ -88,11 +88,15 @@ in {
           pex-enabled = false;
           lpd-enabled = false;
           utp-enabled = true;
+          preferred-transports = ["utp" "tcp"];
+          peer-socket-tos = "le"; # background-priority traffic, so the house link is not starved
+          peer-id-ttl-hours = 6;
           encryption = 1; # prefer encrypted
           peer-limit-global = 2000;
           peer-limit-per-torrent = 500;
           upload-slots-per-torrent = 14;
           cache-size-mb = 4;
+          prefetch-enabled = true;
           preallocation = 1;
 
           # queue, no limits
