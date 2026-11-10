@@ -46,8 +46,11 @@ in {
     deviceExtraOpts.serial = "tbssd";
   };
 
-  virtualisation.memorySize = lib.mkDefault 3072;
-  virtualisation.cores = lib.mkDefault 2;
+  # Every service runs in one VM (Synapse, Gitea, Paperless, Seafile's container, ...): 3 GB was
+  # too little once they were all in. Root disk: podman keeps Seafile's two 1.7 GB images there.
+  virtualisation.memorySize = lib.mkDefault 6144;
+  virtualisation.cores = lib.mkDefault 4;
+  virtualisation.diskSize = lib.mkDefault 12288;
 
   # --- network: the LAN as 192.168.178.0/24 + the ULA, and a separate "internet" vlan ------
   # eth1 (vlan 1) is the LAN NIC, eth2 (vlan 2) the public side. The addresses are assigned here.

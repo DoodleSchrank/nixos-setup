@@ -49,6 +49,14 @@ gen_value() {
       ssh-keygen -q -t ed25519 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
     *ssh_host_rsa_key|*host_rsa_key)
       ssh-keygen -q -t rsa -b 2048 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
+    *ssh_host_ecdsa_key|*host_ecdsa_key)
+      ssh-keygen -q -t ecdsa -b 256 -N "" -C test-only -f "$tmp/k" && cat "$tmp/k" && rm -f "$tmp/k" "$tmp/k.pub" ;;
+    lfs_jwt_secret|oauth2_jwt_secret)
+      # Gitea: base64url (no padding) of exactly 32 random bytes
+      head -c 32 /dev/urandom | base64 -w0 | tr '+/' '-_' | tr -d '=' ; echo ;;
+    jwt_private_pem)
+      # Gitea's [oauth2] JWT_SIGNING_PRIVATE_KEY_FILE: a PKCS#8 RSA private key, nothing else in the file
+      openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null ;;
     rsa_key)
       # Vaultwarden's rsa_key.pem: a PKCS#1 RSA private key ("BEGIN RSA PRIVATE KEY")
       openssl genrsa -traditional 2048 2>/dev/null ;;
@@ -62,6 +70,36 @@ gen_value() {
     *signing_key|*signing.key)
       # Synapse signing key: "<algorithm> <version> <unpadded base64 of 32 bytes>"
       printf 'ed25519 atest %s\n' "$(head -c 32 /dev/urandom | base64 -w0 | tr -d '=')" ;;
+    registration_shared_secret|static_auth_secret|form_secret)
+      # Synapse / coturn shared secrets: plain strings (the generic "*registration*" case below is for registrations)
+      printf 'test%s\n' "$(head -c 14 /dev/urandom | od -An -tx1 | tr -d ' \n')" ;;
+    api_id)
+      # Telegram api_id: an integer
+      echo 1234567 ;;
+    registration)
+      # appservice registration of a mautrix bridge, in the shape `--generate-registration` writes
+      case "$file" in
+        mautrix-whatsapp.yaml) bridge=whatsapp; port=29318 ;;
+        mautrix-telegram.yaml) bridge=telegram; port=29317 ;;
+        *) bridge=test-bridge; port=29399 ;;
+      esac
+      cat <<EOF
+id: $bridge
+url: http://localhost:$port
+as_token: test-as-token-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
+hs_token: test-hs-token-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
+sender_localpart: test-sender-$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')
+rate_limited: false
+namespaces:
+    users:
+        - regex: ^@$bridge:nnik\.dev\$
+          exclusive: true
+        - regex: ^@${bridge}_.*:nnik\.dev\$
+          exclusive: true
+de.sorunome.msc2409.push_ephemeral: true
+receive_ephemeral: true
+EOF
+      ;;
     *registration*|*registration_yaml)
       # appservice registration; the bridges fill the namespaces themselves, so a minimal valid file
       cat <<EOF

@@ -51,6 +51,10 @@ in {
               NixOS test script: `optiplex.succeed(...)`, `.fail(...)`, `.wait_for_unit(...)`,
               `.wait_until_succeeds(...)`, `.execute(...)`. Keep to those methods to stay
               runnable in the rehearsal tier too.
+              All checks run in ONE shared Python namespace: a top-level name you assign
+              overwrites the driver's globals (`log`, `t`, the node names) and other checks'
+              helpers (one `probe` broke the firewall matrix). Prefix your names, or wrap the
+              script in a function (see `wrapPy` in services/seafile.nix).
             '';
           };
           tiers = lib.mkOption {

@@ -8,9 +8,16 @@
     ./databases.nix
     ./ddns.nix
     ./etesync.nix
+    ./gitea.nix
+    ./coturn.nix
     ./homeassistant.nix
+    ./mautrix-telegram.nix
+    ./mautrix-whatsapp.nix
     ./transmission.nix
     ./nfs.nix
+    ./seafile.nix
+    ./paperless.nix
+    ./synapse.nix
     ./vaultwarden.nix
   ];
 }
