@@ -21,6 +21,11 @@
       url = "github:astro/microvm.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Own app: the Optiplex's sync service module and the pinned baseline build (public repo, no token).
+    battle-tracker = {
+      url = "git+https://git.nnik.dev/AItopia/battle-tracker";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs @ {

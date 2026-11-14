@@ -1,5 +1,25 @@
 {
   "nodes": {
+    "battle-tracker": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794658072,
+        "narHash": "sha256-QqLGjPorPigR91EnlT0wGPD7+A+SS1VxC0MfFAPVypM=",
+        "ref": "refs/heads/main",
+        "rev": "468f70f9024825276419f2d408979e4518d818c9",
+        "revCount": 535,
+        "type": "git",
+        "url": "https://git.nnik.dev/AItopia/battle-tracker"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://git.nnik.dev/AItopia/battle-tracker"
+      }
+    },
     "disko": {
       "inputs": {
         "nixpkgs": [
@@ -80,6 +100,7 @@
     },
     "root": {
       "inputs": {
+        "battle-tracker": "battle-tracker",
         "disko": "disko",
         "home-manager": "home-manager",
         "microvm": "microvm",

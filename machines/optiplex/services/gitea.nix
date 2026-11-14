@@ -91,8 +91,9 @@
   testPath = lib.makeBinPath (with pkgs; [git curl coreutils gnused gnugrep findutils openssh util-linux systemd gawk]);
 in {
   # (an `apply` added to the existing option declaration; it sees the merged list) see "tmpfiles" below
+  # (Also drops battle-tracker's: an option can have only one `apply`; its unit creates the directory itself.)
   options.systemd.tmpfiles.rules = lib.mkOption {
-    apply = lib.filter (r: !(lib.hasInfix stateDir r));
+    apply = lib.filter (r: !(lib.hasInfix stateDir r || lib.hasInfix "/state/battle-tracker" r));
   };
 
   config = {

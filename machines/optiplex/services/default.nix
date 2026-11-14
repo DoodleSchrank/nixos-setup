@@ -1,6 +1,7 @@
 # One line per Kept service ticket: ./<service>.nix
 {
   imports = [
+    ./battle-tracker.nix
     ./blocky.nix
     ./caddy.nix
     ./databases.nix
