@@ -35,7 +35,7 @@ Commands for **Arch** are written as typed in a root shell on Arch (`ssh optiple
 cd ~/nixos-setup                                  # the exact commit that was tested (git status clean)
 X=/run/user/$(id -u)/optiplex-cutover             # tmpfs: --extra-files tree, passphrase file; shredded in 16.8
 HK=~/.local/share/optiplex-hostkeys               # copy of the Optiplex's host keys (ticket 44 shreds it, not the Cutover)
-NIXOS_ANYWHERE=github:nix-community/nixos-anywhere   # PENDING 45: replace by the pinned ref ticket 45 chooses
+NIXOS_ANYWHERE=github:nix-community/nixos-anywhere   # PENDING 45: replace by the pinned ref ticket 45 records (its work in progress pins rev 58132e1d1f813b845382a2aeca4203b18d2ac807; not yet in the ticket)
 OPTI=192.168.178.20
 ```
 
@@ -164,7 +164,7 @@ Do these early; none of them hurts Arch.
 - **Who / where / time:** agent, PC, 5 min. `PENDING 45`: ticket 45 owns the exact tarball, the pinned nixos-anywhere ref and the flags; replace the placeholders below with what it recorded.
 - **Do:**
   ```sh
-  curl -L -o "$X/kexec.tar.gz" <the kexec installer tarball URL ticket 45 pins>     # PENDING 45
+  curl -L -o "$X/kexec.tar.gz" <the kexec installer tarball URL ticket 45 pins>     # PENDING 45; its work in progress uses https://github.com/nix-community/nixos-images/releases/download/nixos-unstable/nixos-kexec-installer-noninteractive-x86_64-linux.tar.gz
   nix build --no-link "$NIXOS_ANYWHERE"                                             # nixos-anywhere itself is in the store
   ```
   Reason for the local tarball: when Pi-hole stops (step 5.8) Arch has no DNS, and the kexec phase would otherwise download the tarball on Arch.
@@ -418,7 +418,7 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
     --target-host yannik@$OPTI --ssh-port 25560 \
     --kexec "$X/kexec.tar.gz" --phases kexec                      # PENDING 45: flags, and whether sudo needs an option
   ```
-  No `poweroff`: the kexec phase reboots into the installer. The USB stick is the fallback (below).
+  No `poweroff`: the kexec phase reboots into the installer. The USB stick is the fallback (below). Ticket 45's work in progress rehearses this shape (source with sshd on 25560, `yannik` with sudo, no root login, no DNS, no route out; tarball from the PC) and then the install with `--no-substitute-on-destination --no-use-machine-substituters`; the Rollback image there is made with `zstd`, `sfdisk -d` and `sha256sum`, so those tools exist in the kexec installer. All of it is unconfirmed until the ticket records it.
 - **Check:** after a few minutes `ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI uname -a` answers on **port 22 as root** (the installer, not Arch: the host key changes, so the PC's known_hosts is not used for this connection).
 - **If kexec fails, nothing has been written yet:** a power cycle (the human at the box) boots Arch from the NVMe again. Then the Seafile containers stay down (`restart=no`) and the Cutover is either retried or goes the USB way. **USB way:** the human plugs monitor and keyboard into the Optiplex, boots the stick (the boot menu key of the Dell BIOS), the installer gets its address by DHCP (the FritzBox reserves `.20` for the NIC's MAC) and answers as `root` on port 22 with yannik's keys; continue at step 6.
 
