@@ -4,6 +4,9 @@
 #
 #   zz-backup-job      the nightly job: snapshot contents, excludes, dumps, SQLite copies, healthchecks ping,
 #                      the check job, the guards
+#   zz-backup-local    the local copy job (optiplex-local, repository on the Data disk): a repository made by
+#                      hand as the Arch gate does, one snapshot with the bucket job's paths and excludes, a clean
+#                      failure when the repository does not exist (the job never initialises one)
 #   zz-backup-restore  the restore rehearsal: back to restoreMode (quiescent), a failing job (a required mount
 #                      fails, as a missing Data disk would) posts to ntfy, a second snapshot, the State and both database servers
 #                      are wiped, optiplex-backup-restore puts everything back from that snapshot, then
@@ -19,6 +22,9 @@
   cfg = config.optiplex;
   bk = cfg.backup;
   job = config.services.restic.backups.optiplex;
+  localJob = config.services.restic.backups.optiplex-local;
+  localRepo = localJob.repository;
+  localRestic = "${pkgs.restic}/bin/restic -r ${localRepo} --password-file ${passwordFile}";
 
   repo = "/var/lib/test-restic-repo";
   passwordFile = config.sops.secrets."restic/repository_password".path;
@@ -168,6 +174,61 @@ in {
     # --- the weekly check job: a check-only unit that pings backup-check ---
     optiplex.succeed("systemctl start restic-backups-optiplex-check.service")
     optiplex.wait_until_succeeds("${hcManage} shell -v 0 -c \"from hc.api.models import Check; c = Check.objects.get(slug='backup-check'); print(c.n_pings, c.status)\" | grep -qx '1 up'", timeout=60)
+  '';
+
+  # Runs after zz-backup-job (name order): the canaries, the SQLite sources and the dump directories exist.
+  optiplex.vmTest.checks."zz-backup-local".script = wrapPy "bk_local" ''
+    import json
+    from fnmatch import fnmatch
+
+    unit = "restic-backups-optiplex-local.service"
+    props = optiplex.succeed(f"systemctl show -p RequiresMountsFor {unit}")
+    assert "/state" in props and "/mnt/tbssd" in props, props
+    # the repository is on the Data disk and no backend option leaks in from the bucket job
+    assert "${localRepo}" == "/mnt/tbssd/restic-local", "${localRepo}"
+    cat = optiplex.succeed(f"systemctl cat {unit}")
+    assert "s3.storage-class" not in cat and "restic-env" not in cat and "RESTIC_REPOSITORY_FILE" not in cat, cat
+    optiplex.fail("systemctl is-enabled restic-backups-optiplex-local.timer")
+
+    # --- no repository: the job fails cleanly and creates none (initialize = false) ---
+    optiplex.succeed("rm -rf ${localRepo}")
+    optiplex.fail(f"systemctl start {unit}")
+    optiplex.fail("test -e ${localRepo}")
+    log = optiplex.succeed(f"journalctl -u {unit} --no-pager -n 50")
+    assert "Is there a repository at the following location" in log or "unable to open config file" in log, log
+    optiplex.succeed("systemctl reset-failed || true")
+
+    # --- a repository made by hand (the Arch gate's --init), then the job ---
+    optiplex.succeed("${localRestic} init")
+    optiplex.succeed(f"systemctl start {unit}")
+    snaps = json.loads(optiplex.succeed("${localRestic} snapshots --json"))
+    assert len(snaps) == 1, snaps
+    snap = snaps[0]
+    assert snap["hostname"] == "optiplex" and snap["tags"] == ["nightly"], snap
+    for p in json.loads('${nightlyPaths}'):
+        assert p in snap["paths"], (p, snap["paths"])
+    assert sorted(snap["paths"]) == sorted(json.loads('${nightlyPaths}')), snap["paths"]
+    listing = optiplex.succeed("${localRestic} ls latest").splitlines()
+    # its own dumps, the SQLite copies, the host keys and a plain State canary are in
+    for db in ${builtins.toJSON cfg.databases.postgresql}:
+        assert f"/var/backup/postgresql/{db}.sql" in listing, db
+    for name in json.loads('${sqliteSources}'):
+        assert f"/var/backup/sqlite/{name}.sqlite3" in listing, name
+    for p in ("/etc/ssh/ssh_host_ed25519_key", "/state/backup-canary/keep", "/mnt/tbssd/archive/.zsh_history"):
+        assert p in listing, p
+    # the same excludes as the bucket job: the canaries are on disk and not in the snapshot
+    for d in ${builtins.toJSON canaryDirs}:
+        optiplex.succeed(f"test -e {d}/zz-canary")
+        assert f"{d}/zz-canary" not in listing, d
+    for f in ${builtins.toJSON canaryFiles}:
+        assert f not in listing, f
+    for line in listing:
+        for pat in json.loads('${excludePatterns}'):
+            assert not (line == pat or line.startswith(pat + "/") or fnmatch(line, pat)), (line, pat)
+    assert ${builtins.toJSON localJob.exclude} == ${builtins.toJSON job.exclude}, "the local job's excludes differ from the bucket job's"
+    # the repository is intact
+    optiplex.succeed("${localRestic} check")
+    optiplex.succeed("rm -rf ${localRepo}")
   '';
 
   optiplex.vmTest.checks."zz-backup-restore".script = wrapPy "bk_restore" ''

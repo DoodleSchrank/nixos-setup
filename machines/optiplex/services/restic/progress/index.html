@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup: live progress</title>
+<style>
+  :root { color-scheme: light dark; --fg: #1d1d1f; --muted: #6e6e73; --bg: #fff; --track: #e5e5ea; --bar: #0a7d4f; --warn: #b26a00; --bad: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #f5f5f7; --muted: #a1a1a6; --bg: #1c1c1e; --track: #3a3a3c; --bar: #32c786; --warn: #ffb340; --bad: #ff6961; } }
+  body { margin: 0; font: 16px/1.4 system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+  main { max-width: 38rem; margin: 3rem auto; padding: 0 1.25rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 1.5rem; }
+  #phase { font-size: 1.15rem; font-weight: 600; }
+  #message { color: var(--muted); margin-top: .25rem; min-height: 1.4em; }
+  .track { height: 1.1rem; background: var(--track); border-radius: .55rem; overflow: hidden; margin: 1.25rem 0 .5rem; }
+  .bar { height: 100%; width: 0; background: var(--bar); transition: width .6s ease; }
+  .track.indeterminate .bar { width: 35%; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  #percent { font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 600; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1.2rem; margin: 1.25rem 0 0; font-variant-numeric: tabular-nums; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  #status { margin-top: 1.5rem; font-size: .95rem; }
+  #status.warn { color: var(--warn); }
+  #status.bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Backup: live progress</h1>
+  <div id="phase">Waiting for the first update…</div>
+  <div id="message"></div>
+  <div id="track" class="track indeterminate" role="progressbar" aria-label="Upload progress">
+    <div class="bar"></div>
+  </div>
+  <div id="percent"></div>
+  <dl>
+    <dt>Data</dt><dd id="data">–</dd>
+    <dt>Files</dt><dd id="files">–</dd>
+    <dt>Elapsed</dt><dd id="elapsed">–</dd>
+    <dt>Remaining (restic's estimate)</dt><dd id="remaining">–</dd>
+  </dl>
+  <div id="status"></div>
+</main>
+<script>
+(() => {
+  const POLL_MS = 2000;
+  // The page measures staleness on its own clock: the Arch box's clock is not trusted.
+  const STALE_MS = 30000;
+  const PHASE_LABEL = {
+    starting: "Starting", dumps: "Dumping databases", sqlite: "Copying SQLite databases",
+    local: "Copying to the local repository", backup: "Uploading to Scaleway", snapshots: "Snapshots",
+    done: "Finished", failed: "Stopped"
+  };
+  const $ = (id) => document.getElementById(id);
+  let lastUpdated = null;
+  let lastChange = null;
+
+  function bytes(n) {
+    if (n == null) return "–";
+    const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? n.toFixed(0) : n.toFixed(2)) + " " + units[i];
+  }
+  function count(n) { return n == null ? "–" : n.toLocaleString(); }
+  function clock(s) {
+    if (s == null) return "–";
+    s = Math.round(s);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return (h ? h + " h " : "") + (h || m ? m + " min " : "") + sec + " s";
+  }
+
+  function render(p) {
+    $("phase").textContent = PHASE_LABEL[p.phase] || p.phase || "Unknown";
+    $("message").textContent = p.message || "";
+    const track = $("track");
+    const known = p.percent != null;
+    track.classList.toggle("indeterminate", !known);
+    $("percent").textContent = known ? p.percent + " %" : "";
+    track.setAttribute("aria-valuenow", known ? p.percent : "");
+    document.querySelector(".bar").style.width = known ? p.percent + "%" : "";
+    $("data").textContent = p.total_bytes != null
+      ? bytes(p.bytes_done) + " of " + bytes(p.total_bytes) : "–";
+    $("files").textContent = p.total_files != null
+      ? count(p.files_done) + " of " + count(p.total_files) : "–";
+    $("elapsed").textContent = clock(p.seconds_elapsed);
+    $("remaining").textContent = clock(p.seconds_remaining);
+  }
+
+  function status(text, cls) {
+    const el = $("status");
+    el.textContent = text;
+    el.className = cls || "";
+  }
+
+  async function poll() {
+    const now = Date.now();
+    try {
+      const res = await fetch("progress.json?t=" + now, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const p = await res.json();
+      if (p.updated !== lastUpdated) { lastUpdated = p.updated; lastChange = now; render(p); }
+      const finished = p.phase === "done" || p.phase === "failed";
+      if (finished) {
+        status(p.phase === "done" ? "The backup run is finished." : "The backup run stopped. See its log: the terminal on Arch, or journalctl -u restic-backups-optiplex on the Optiplex.",
+          p.phase === "done" ? "" : "bad");
+      } else if (lastChange !== null && now - lastChange > STALE_MS) {
+        status("No update for " + Math.round((now - lastChange) / 1000) + " s. One large file can take a while;"
+          + " if this lasts, check the run's log.", "warn");
+      } else {
+        status("Updated " + new Date().toLocaleTimeString() + ".", "");
+      }
+    } catch (err) {
+      status("Cannot read the progress file (" + err.message + "). Retrying.", "warn");
+    }
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>

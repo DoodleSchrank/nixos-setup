@@ -99,8 +99,8 @@ harness. The same repository is then used by the NixOS timer, so nothing is thro
 `arch-gate.sh` (the run) and `gate-verify.sh` (the check of a restored snapshot). The NixOS side is
 `machines/optiplex/services/restic.nix`.
 
-Before the run: put the final elabFTW export into `/mnt/tbssd/archive/elabftw/` on Arch (it is carried by
-the NixOS job afterwards, when retention has aged the gate snapshot out).
+Before the run: nothing extra is needed for elabFTW, which is dropped and not archived. (`.zsh_history` goes
+into `/mnt/tbssd/archive/arch-optiplex/` before the wipe, as in the Cutover runbook.)
 
 ### Making the env file
 
@@ -126,8 +126,23 @@ sudo infra/scaleway/arch-gate.sh --env-file /root/restic-gate.env --init        
 ```
 
 Later runs leave out `--init`; the Cutover runbook runs it with `--final` (the dump script then refuses while a
-consumer container is running). Without `--init` the script refuses a repository that does not answer, so a typo in
+consumer container is running). The dumps need the DB servers, so the final run happens with every consumer
+stopped but the DB servers and Pi-hole still up; the DB servers are stopped after it (decided 2026-11-14, ticket
+"Fix the config and script defects"). The sources include Seafile's `ccnet/`; snapshots made before 2026-11-14
+(`2c253959`) lack it, so take a fresh gate run before the real-State rehearsal. Without `--init` the script refuses a repository that does not answer, so a typo in
 the URL can never create a second repository.
+
+Every run writes two repositories: the bucket, and the local one on the Data disk (`/mnt/tbssd/restic-local`, the
+NixOS job `optiplex-local` continues in it). The local copy goes first, since it needs no network. `--init` creates
+both. The bucket already exists (snapshot `2c253959`, 2026-11-10), so the initial local copy is taken with
+
+```sh
+sudo infra/scaleway/arch-gate.sh --env-file /root/restic-gate.env --init --local-only
+```
+
+`--local-only` leaves the bucket untouched, so it keeps its one snapshot. The script refuses to run when
+`/mnt/tbssd` is not mounted, so the local repository cannot land on the System disk. The local repository holds the
+same stage, excludes and password as the bucket, and check it with `restic -r /mnt/tbssd/restic-local snapshots --tag arch-gate`.
 
 Then confirm the storage class: new objects must show "One Zone" (console: Object Storage, bucket, any object under
 `data/`), or
@@ -138,6 +153,27 @@ aws --endpoint-url https://s3.fr-par.scw.cloud s3api head-object --bucket nnik-o
 ```
 
 If it says `STANDARD`, stop: the `-o s3.storage-class=ONEZONE_IA` option did not reach restic.
+
+### Watching the run
+
+`arch-gate.sh` writes its phase and the upload numbers to `progress.json` in the gate directory on Arch
+(`/srv/http/opti.plex/gate/`, `GATE_STATUS_DIR` overrides it). The page `index.html` next to it is the live view. It is meant to
+be reached at `http://gate.opti.plex/` (also linked from the `opti.plex` dashboard as "gate"; the check below confirms this on Arch). Nothing is sent over ssh, and the
+Cutover is not needed to see it. Both files hold no paths and no secrets.
+
+The script and the page live in `machines/optiplex/services/restic/progress/` (`backup-progress.sh`, `index.html`).
+After the Cutover the nightly NixOS job uses the same script, through the wrapped restic in `restic.nix`, and
+writes to `/state/www/opti.plex/gate` (served by Caddy as `gate.opti.plex`). Its phases are the same, plus
+"Stopped" with the exit status when the job fails.
+
+- The page says "Stopped" with the exit code when the run fails, and "finished" when the upload is done. The
+  snapshot listing and the storage-class check happen after the upload; the terminal on Arch shows them.
+- If the page warns "No update for N s", one large file can take a while. Check the terminal if it lasts.
+- Without `jq` on Arch the run goes on with no page; the script prints one line saying so.
+- Check that the site is served: `curl -sI http://gate.opti.plex/` should answer 200 from the LAN.
+
+The progress file is written by `backup-progress.sh` and is not in the bucket. The gate directory is excluded from
+the Backup, so the page cannot end up in a snapshot.
 
 ### The restore check
 

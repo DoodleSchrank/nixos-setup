@@ -45,6 +45,9 @@ in {
       customDNS = {
         # A mapping also matches every subdomain. Retired names (pihole, portainer,
         # fredy, the hairpin CNAMEs) fall under it and meet Caddy's catch-all.
+        # So gate.opti.plex, www.opti.plex and any other subdomain resolve here with no
+        # CNAME (checked against blocky 0.35.0). The Pi-hole cnameRecords list is Arch-only:
+        # Pi-hole answers only the names listed there. Do not add CNAMEs on this side.
         mapping = {
           "nnik.dev" = hostAddresses;
           "opti.plex" = hostAddresses;

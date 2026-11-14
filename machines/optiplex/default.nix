@@ -45,7 +45,8 @@ in {
         units' `wantedBy`) on `!config.optiplex.restoreMode`. Switch services
         off, never modules: users, groups, sops secrets and /state/<service>
         directories must still exist in restore mode. The edge (Caddy, ACME,
-        DDNS, blocky) stays on.
+        blocky) stays on. The DDNS updater is off (no DNS record changes before
+        the normal deploy).
       '';
     };
 

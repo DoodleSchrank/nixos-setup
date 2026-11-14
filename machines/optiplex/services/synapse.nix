@@ -31,6 +31,8 @@
   dpSecrets = cfg.secretsDir + "/doublepuppet.yaml";
   haveSecrets = builtins.pathExists synapseSecrets && builtins.pathExists coturnSecrets && builtins.pathExists dpSecrets;
   enable = !cfg.restoreMode;
+  minVersion = "1.156.0"; # the live version at the Cutover; Synapse's schema migrations only go forward
+  synapsePkg = pkgs.matrix-synapse; # the module sets its read-only `package` option only when enabled (not in restoreMode)
 
   stateDir = "/state/synapse";
   mediaStore = "${stateDir}/media_store";
@@ -52,6 +54,13 @@
   '';
 in {
   config = {
+    assertions = [
+      {
+        assertion = lib.versionAtLeast synapsePkg.version minVersion;
+        message = "matrix-synapse ${synapsePkg.version} is older than the live homeserver (${minVersion}): its database migrations cannot be undone, do not downgrade (check before each deploy after `nix flake update`).";
+      }
+    ];
+
     # --- users: declared in restoreMode too (sops owners, restored State); ids are nixpkgs' static ones --
     users.users.matrix-synapse = {
       isSystemUser = true;

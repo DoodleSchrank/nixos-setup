@@ -74,14 +74,11 @@
     '';
   };
 
-  sizeOf = v:
-    if rcfg.testSizes != null
-    then rcfg.testSizes
-    else {
-      inherit (v) vcpu mem;
-      runnerMiB = v.runnerImageMiB;
-      cacheMiB = v.cacheImageMiB;
-    };
+  sizeOf = v: {
+    inherit (v) vcpu mem;
+    runnerMiB = v.runnerImageMiB;
+    cacheMiB = v.cacheImageMiB;
+  };
 
   volumes = kind: v: [
     {
@@ -104,7 +101,6 @@
 in {
   imports = [
     inputs.microvm.nixosModules.host
-    ./gitea-runners-vmtest.nix
   ];
 
   options.optiplex.runnerVms = {
@@ -117,19 +113,6 @@ in {
         registering again, so the Backup excludes it (hand this path to the restic job).
       '';
     };
-    # Test seams (services/gitea-runners-vmtest.nix sets them in the hermetic VM test, nothing else does)
-    testSizes = lib.mkOption {
-      type = lib.types.nullOr (lib.types.attrsOf lib.types.int);
-      default = null;
-      internal = true;
-      description = "null, or { vcpu, mem, runnerMiB, cacheMiB } replacing the sizes of both VMs, so they fit into the test VM.";
-    };
-    extraGuestModules = lib.mkOption {
-      type = lib.types.listOf lib.types.deferredModule;
-      default = [];
-      internal = true;
-      description = "Extra NixOS modules for both guests (the test images and CA).";
-    };
   };
 
   config = {
@@ -139,10 +122,8 @@ in {
       lib.nameValuePair v.name {
         autostart = enable;
         config = {
-          imports = [(../runner-vms + "/${kind}.nix")] ++ rcfg.extraGuestModules;
+          imports = [(../runner-vms + "/${kind}.nix")];
           microvm.volumes = volumes kind v;
-          microvm.vcpu = lib.mkIf (rcfg.testSizes != null) (lib.mkForce rcfg.testSizes.vcpu);
-          microvm.mem = lib.mkIf (rcfg.testSizes != null) (lib.mkForce rcfg.testSizes.mem);
           microvm.credentialFiles = lib.mkIf haveSecrets {
             RUNNER_TOKEN = config.sops.secrets.${tokenSecret kind}.path;
           };

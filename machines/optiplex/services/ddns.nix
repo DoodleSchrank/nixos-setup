@@ -136,10 +136,14 @@ in {
   options.optiplex.ddns = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = !cfg.restoreMode;
+      defaultText = lib.literalExpression "!config.optiplex.restoreMode";
       description = ''
-        Run the Porkbun DDNS updater. Stays on in restoreMode. Switch it off in any VM
-        that is not meant to rewrite the real records.
+        Run the Porkbun DDNS updater. Off in restoreMode: while the old `*.nnik.dev` CNAME
+        exists the updater would still sync the apex (edit its A, create its AAAA) and only
+        then fail on `*`, every 5 minutes. A rollback before the normal deploy would then
+        leave an AAAA on nnik.dev that nothing answers. Switch it off in any VM that is
+        not meant to rewrite the real records.
       '';
     };
     apiBase = lib.mkOption {

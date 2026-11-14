@@ -172,6 +172,10 @@ in {
         automation = "!include automations.yaml";
         script = "!include scripts.yaml";
         scene = "!include scenes.yaml";
+        # The unreachable Tapo bulbs (switched off at the wall) make python-kasa log an ERROR for every
+        # poll of every module. Only that logger is raised to critical; the tplink integration itself
+        # still logs, and the bulbs come back on their own once the switch is on again.
+        logger.logs."kasa.smart.smartdevice" = "critical";
       };
     };
 

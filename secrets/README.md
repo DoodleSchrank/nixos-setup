@@ -28,6 +28,19 @@ Present so far:
 - `optiplex/ntfy.yaml` (not created yet): `yannik_password_hash` (bcrypt hash of a fresh password, for the Android app's login; the clear password goes to Vaultwarden) and `publisher_token` (`tk_` + 29 random characters of [a-z0-9], the host's write-only token). Read by `services/ntfy.nix`, which also hands the token to the failure hook and smartd. If the file is missing, the build only warns, ntfy stays off and failed units only log.
 - `optiplex/healthchecks.yaml` (not created yet): `secret_key` (Django, fresh) and `ping_key` (fresh random letters and digits; `healthchecks-ensure` sets it on the project, the Backup pings use it). Read by `services/healthchecks.nix`. If the file is missing, the build only warns and healthchecks stays off.
 
+Outside `optiplex/` (encrypted to `yannik` only, by the last rule of `.sops.yaml`):
+- `luks.yaml`: `luks_passphrase`, the System disk's LUKS passphrase (64 hex characters from `openssl rand -hex 32`, never displayed). Read by `machines/optiplex/unlock-optiplex.sh`, which pipes it into the initrd over SSH (ADR 0002, amended). Regenerate only with a reinstall plan, since changing it needs a `cryptsetup` passphrase change on the disk. Recovery depends on the age key, which is the only way to decrypt this file.
+
+Read the value out (prints it to the terminal, so do this only when you need it, and clear the scrollback afterwards):
+```sh
+cd secrets && sops -d --extract '["luks_passphrase"]' luks.yaml
+```
+Copy it without displaying it, if a clipboard tool is available (`wl-copy` on Wayland, `xclip -selection clipboard` on X11):
+```sh
+cd secrets && sops -d --extract '["luks_passphrase"]' luks.yaml | wl-copy
+```
+Both need `~/.config/sops/age/keys.txt` on the machine. If that key is gone, restore it from its Vaultwarden copy or printout first (see "Your own key is lost" below). Once the key is back, the commands above work unchanged.
+
 ## Test mirror (VM tests)
 
 `secrets/test/optiplex/` mirrors every file of `secrets/optiplex/` with made-up values, encrypted only to the committed, public test age key `secrets/test/age-key.txt` (rule `test/optiplex/` in `.sops.yaml`, which must stay above the `optiplex/` rule). The VM tests point `optiplex.secretsDir` at it. Regenerate after adding or changing a real file (only key names are read, nothing is decrypted):
@@ -43,6 +56,8 @@ A typed secret (PEM, signing key, YAML) needs a case in the generator map of tha
 cd secrets
 sops optiplex/<service>.yaml        # create or edit (needs ~/.config/sops/age/keys.txt)
 ```
+
+**Host key copy (PC, outside the repo):** `~/.local/share/optiplex-hostkeys/etc/ssh/` holds the Optiplex's `ssh_host_ed25519_key` and `ssh_host_rsa_key`, copied byte for byte from `/etc/ssh` on the box. Folder 0700, key files 0600. Point `REHEARSAL_HOSTKEYS` at `~/.local/share/optiplex-hostkeys` for the real-secret rehearsal (`tests/optiplex/rehearsal.sh`). The same copy is used for `--extra-files` at the Cutover. Keep it out of git. Refresh it with a read-only `sudo cat` if the host key changes.
 
 **Derive a host's age recipient** from its SSH host key:
 ```sh

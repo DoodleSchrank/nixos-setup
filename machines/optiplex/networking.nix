@@ -85,7 +85,9 @@ in {
 
     # Initrd: the same static address, so the LUKS unlock works over SSH (port 2222).
     #
-    # Unlock from the LAN:
+    # Unlock from the LAN, from the PC (ADR 0002, amended):
+    #   machines/optiplex/unlock-optiplex.sh     (reads secrets/luks.yaml, sends the passphrase to the initrd)
+    # By hand, if the script is unavailable:
     #   ssh -p 2222 root@192.168.178.20          (yannik's key; host key = the initrd key)
     #   systemd-tty-ask-password-agent --query   (type the passphrase; boot continues)
     # (`systemctl default` in that shell is the fallback that also continues the boot.)

@@ -145,6 +145,17 @@ in {
             file_server
           '';
         };
+        # Backup progress page (linked from the dashboard as "gate"). Served from
+        # /state/www/opti.plex/gate, which the nightly job writes (restic.nix, progressDir).
+        # Until a run publishes there, the directory is empty and this answers 404.
+        "http://gate.opti.plex" = {
+          extraConfig = ''
+            import lan_only
+            header Content-Security-Policy "frame-ancestors 'self' http://opti.plex"
+            root * /state/www/opti.plex/gate
+            file_server
+          '';
+        };
       };
     };
 

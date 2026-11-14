@@ -33,6 +33,7 @@
   };
 
   clientNode = {vlan, v4, v6}: {pkgs, ...}: {
+    virtualisation.memorySize = 512; # python, curl, ssh: the host under test is the only big node
     virtualisation.vlans = lib.mkForce [];
     virtualisation.interfaces.eth1.vlan = vlan;
     networking.interfaces.eth1 = {
@@ -56,6 +57,7 @@ in
     # Fake CA (pebble) and its DNS challenge server, on the LAN. Trusted by every node.
     nodes.acme = {...}: {
       imports = [(pkgs.path + "/nixos/tests/common/acme/server")];
+      virtualisation.memorySize = 512;
       virtualisation.vlans = lib.mkForce [];
       virtualisation.interfaces.eth1.vlan = 1;
       networking.interfaces.eth1.ipv4.addresses = [{address = "192.168.178.60"; prefixLength = 24;}];

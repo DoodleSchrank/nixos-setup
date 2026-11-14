@@ -1,7 +1,13 @@
-# Backup: the nightly restic job to the Scaleway bucket (one client-side encrypted repository, off-site
-# only, no local copy for now), the consistent database and SQLite copies it takes first, and the weekly
-# check. Alerts: a failed job posts to ntfy through notify-failure@ (monitoring.nix), a successful one
-# pings healthchecks (healthchecks.nix).
+# Backup: the nightly restic job to the Scaleway bucket (one client-side encrypted repository, off-site),
+# a second nightly job to a local repository on the Data disk (/mnt/tbssd/restic-local, decided 2026-11-11),
+# the consistent database and SQLite copies both take first, and the weekly check of the bucket.
+# Alerts: a failed job posts to ntfy through notify-failure@ (monitoring.nix), a successful bucket run
+# pings healthchecks (healthchecks.nix). The local job has no ping of its own.
+#
+# The local job runs at 03:30, after the bucket job. It waits while the bucket job is still running, then
+# takes its own dumps, so it never reads a set of dumps that is being rewritten. The local copy sits on the
+# same SATA SSD as State: it covers deletions, bad migrations and a damaged file, not the loss of that disk.
+# Restore from it by hand: `restic -r /mnt/tbssd/restic-local ...` with the repository password.
 #
 # What the job does, in order (backupPrepareCommand = optiplex-backup-prepare, all blocking):
 #   1. pg_dump -Fc -Z0 of the five PostgreSQL databases into /var/backup/postgresql/<db>.sql
@@ -16,6 +22,12 @@
 #   points at them, so a database older than the block store is safe and the reverse is not.
 # Then restic backs up /state, /var/backup, /mnt/tbssd/archive, the host keys and the initrd host key,
 # and forgets and prunes (7 daily, 4 weekly, 6 monthly, grouped by host).
+#
+# Live progress: the job publishes its phase and the upload numbers to the progress page at
+# gate.opti.plex (Caddy serves `progressDir`, the same page as the pre-Cutover gate). The script is
+# services/restic/progress/backup-progress.sh. The job's restic is `resticWithProgress` (below): its
+# `backup --json` feeds the script, `forget` marks the pruning phase. The page directory is excluded
+# from the Backup, so the page never ends up in a snapshot.
 #
 # The lists of paths and excludes are keyed by service in optiplex.backup.{paths,excludes,sqlite}, so a
 # service file can add its own; this file sets them for every Kept service. The D&D follow-up of the
@@ -40,9 +52,57 @@
   cfg = config.optiplex;
   bk = cfg.backup;
   resticSecrets = cfg.secretsDir + "/restic.yaml";
+  localRepository = "/mnt/tbssd/restic-local"; # on the Data disk, outside every backed-up path
   sec = n: config.sops.secrets."restic/${n}";
 
   sqliteDir = "/var/backup/sqlite";
+
+  # Served by Caddy as gate.opti.plex (caddy.nix); excluded from the Backup (excludes.progress).
+  progressDir = "/state/www/opti.plex/gate";
+  progress = pkgs.writeShellApplication {
+    name = "optiplex-backup-progress";
+    runtimeInputs = with pkgs; [jq coreutils];
+    text =
+      ''
+        : "''${BACKUP_STATUS_DIR:=${progressDir}}"
+        : "''${BACKUP_PAGE_SRC:=${./restic/progress/index.html}}"
+        export BACKUP_STATUS_DIR BACKUP_PAGE_SRC
+      ''
+      + builtins.readFile ./restic/progress/backup-progress.sh;
+  };
+
+  # restic for the nightly job: `backup` runs with --json and its status feeds the progress page,
+  # `forget` (the pruning after the backup) sets the snapshots phase. Everything else passes through,
+  # and the exit status is restic's.
+  resticWithProgress = pkgs.writeShellApplication {
+    name = "restic";
+    text = ''
+      # The subcommand is the first argument that is neither an option nor the value of -o.
+      sub=""
+      skip=0
+      for arg in "$@"; do
+        if [ "$skip" = 1 ]; then skip=0; continue; fi
+        case $arg in
+          -o) skip=1 ;;
+          -*) ;;
+          *) sub=$arg; break ;;
+        esac
+      done
+      case $sub in
+        backup)
+          ${lib.getExe progress} set backup "Starting the upload"
+          ${lib.getExe pkgs.restic} "$@" --json | ${lib.getExe progress} feed
+          ;;
+        forget)
+          ${lib.getExe progress} set snapshots "Pruning old snapshots"
+          exec ${lib.getExe pkgs.restic} "$@"
+          ;;
+        *)
+          exec ${lib.getExe pkgs.restic} "$@"
+          ;;
+      esac
+    '';
+  };
 
   # Live files that the SQLite copies replace: the database and its sidecar files.
   liveSqliteExcludes = lib.concatMap (p: [p "${p}-wal" "${p}-shm" "${p}-journal"]) (lib.attrValues bk.sqlite);
@@ -54,6 +114,10 @@
     name = "optiplex-backup-prepare";
     runtimeInputs = with pkgs; [systemd sqlite coreutils util-linux];
     text = ''
+      # 0. The progress page (a failure here never stops the run)
+      ${lib.getExe progress} init
+      ${lib.getExe progress} set dumps "Dumping databases"
+
       # 1. PostgreSQL (one unit per database)
       ${lib.concatMapStrings (db: "systemctl start postgresqlBackup-${db}.service\n") cfg.databases.postgresql}
       # 2. MariaDB (one unit, all databases)
@@ -61,6 +125,7 @@
 
       # 3. SQLite: an online copy, as the file's owner (a root-run sqlite3 could leave root-owned -wal/-shm
       #    files behind that the service then cannot open), then moved into the root-only dump tree
+      ${lib.getExe progress} set sqlite "Copying SQLite databases"
       install -d -m 0700 ${sqliteDir}
       sqlite_copy() { # <name> <live path>
         local name="$1" live="$2" owner tmp
@@ -133,7 +198,7 @@ in {
       optiplex.backup.paths = {
         state = ["/state"];
         dumps = ["/var/backup"]; # dump staging: postgresql/, mysql/, sqlite/
-        archive = ["/mnt/tbssd/archive"]; # .zsh_history and the final elabFTW export
+        archive = ["/mnt/tbssd/archive"]; # .zsh_history, copied in before the wipe
         host-keys = [
           "/etc/ssh/ssh_host_ed25519_key"
           "/etc/ssh/ssh_host_ed25519_key.pub"
@@ -207,6 +272,7 @@ in {
           "/state/etesync-dav/etebase_data.db*" # a cache the service re-syncs
         ];
         healthchecks = ["/state/healthchecks/static"]; # collectstatic rebuilds it on every start
+        progress = [progressDir]; # the live progress page, rewritten during the run
         sqlite-live = liveSqliteExcludes; # replaced by the copies in /var/backup/sqlite
       };
     }
@@ -264,8 +330,17 @@ in {
           // {
             paths = flatten bk.paths;
             exclude = flatten bk.excludes;
+            package = resticWithProgress;
             extraBackupArgs = ["--tag nightly"];
             backupPrepareCommand = "${lib.getExe prepare}";
+            # Runs in the post-stop step, where systemd sets $SERVICE_RESULT for the run's outcome.
+            backupCleanupCommand = ''
+              if [ "''${SERVICE_RESULT:-}" = success ]; then
+                ${lib.getExe progress} set done "The nightly backup finished."
+              else
+                ${lib.getExe progress} set failed "Stopped with exit status ''${EXIT_STATUS:-unknown}."
+              fi
+            '';
             pruneOpts = ["--keep-daily 7" "--keep-weekly 4" "--keep-monthly 6" "--group-by host"];
             timerConfig =
               if cfg.restoreMode
@@ -276,6 +351,33 @@ in {
                 RandomizedDelaySec = "15m";
               };
           };
+        # The local copy: the same paths, excludes and retention, one repository on the Data disk. It takes
+        # its own dumps (the bucket job's are rewritten only when that job starts). Not initialised by the
+        # job: the Arch gate run creates it (`arch-gate.sh --init --local-only`, infra/scaleway/arch-gate.sh),
+        # so the initial local copy comes from the same run that set up the bucket.
+        optiplex-local = {
+          passwordFile = (sec "repository_password").path;
+          repository = localRepository;
+          initialize = false;
+          paths = flatten bk.paths;
+          exclude = flatten bk.excludes;
+          extraBackupArgs = ["--tag nightly"];
+          backupPrepareCommand = ''
+            state() { ${config.systemd.package}/bin/systemctl show -p ActiveState --value restic-backups-optiplex.service; }
+            while [ "$(state)" = activating ] || [ "$(state)" = active ] || [ "$(state)" = deactivating ]; do
+              sleep 10
+            done
+            ${lib.getExe prepare}
+          '';
+          pruneOpts = ["--keep-daily 7" "--keep-weekly 4" "--keep-monthly 6" "--group-by host"];
+          timerConfig =
+            if cfg.restoreMode
+            then null
+            else {
+              OnCalendar = "03:30";
+              Persistent = true;
+            };
+        };
         # Weekly check of a tenth of the data. A check-only job: no paths, so the module only runs `check`.
         optiplex-check =
           common
@@ -298,14 +400,16 @@ in {
         onSuccess = ["optiplex-hc-ping@backup-nightly.service"];
       };
       systemd.services.restic-backups-optiplex-check.onSuccess = ["optiplex-hc-ping@backup-check.service"];
+      systemd.services.restic-backups-optiplex-local.unitConfig.RequiresMountsFor = ["/state" "/mnt/tbssd"];
 
       # The VM tests must never run the timers (restic would back synthetic or restored State up into the
-      # real bucket), so both are offline timers. offline.nix also removes the services of that list; the
+      # real bucket), so all three are offline timers. offline.nix also removes the services of that list; the
       # tests run the job by hand against a local repository, so the units are put back (a higher
       # priority than its mkForce). The timers stay off.
-      optiplex.vmTest.offlineTimers = ["restic-backups-optiplex" "restic-backups-optiplex-check"];
+      optiplex.vmTest.offlineTimers = ["restic-backups-optiplex" "restic-backups-optiplex-check" "restic-backups-optiplex-local"];
       systemd.services.restic-backups-optiplex.enable = lib.mkOverride 40 true;
       systemd.services.restic-backups-optiplex-check.enable = lib.mkOverride 40 true;
+      systemd.services.restic-backups-optiplex-local.enable = lib.mkOverride 40 true;
     }
 
     # ---- the ping unit (the script is in healthchecks.nix) ---------------------------------------------------------------

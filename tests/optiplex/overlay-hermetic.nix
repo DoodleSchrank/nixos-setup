@@ -25,6 +25,9 @@
 in {
   imports = [./test-secrets.nix ./offline.nix ./demo-service.nix];
 
+  # There is no test of the Gitea runner VMs (nested VMs starve the host): they never start in the VM test.
+  microvm.vms = lib.mapAttrs' (_: v: lib.nameValuePair v.name {autostart = lib.mkForce false;}) (import ../../machines/optiplex/runner-vms/vms.nix).vms;
+
   # --- real config, adapted --------------------------------------------------------------
   disko.enableConfig = false; # the test framework brings its own root
 
