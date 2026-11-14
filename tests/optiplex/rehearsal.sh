@@ -91,6 +91,10 @@ do_checks() { # <phase>
   local pkg=optiplex-rehearsal-checks
   [ -e "$W/dryrun" ] && pkg=optiplex-rehearsal-dryrun-checks
   checks="$(nix build --no-link --print-out-paths "$repo#$pkg-$phase")"
+  # The check scripts call store paths (a test client's Python env, helper scripts) that the VM does not have:
+  # copy the closure first, or those checks fail with exit 127.
+  # shellcheck disable=SC2046
+  NIX_SSHOPTS="$(sshopts_for "$W/kh_main") -p 25560" nix copy --no-check-sigs --to ssh-ng://yannik@127.0.0.1 "$checks"
   # shellcheck disable=SC2046
   REHEARSAL_SSH="ssh $(sshopts_for "$W/kh_main") -p 25560 yannik@127.0.0.1" python3 -I "$repo/tests/optiplex/rehearsal-shim.py" "$checks"
 }
@@ -124,7 +128,7 @@ case "$cmd" in
     fi
 
     log "images: System disk (NVMe), Data disk (ext4, real UUID, sparse $DATA_SIZE)"
-    truncate -s 24G "$W/system.img"
+    truncate -s 64G "$W/system.img"   # sparse; the 16G swapfile of disko.nix leaves room for the Nix store
     truncate -s "$DATA_SIZE" "$W/data.img"
     mkdir -p "$W/seed/state"
     mkfs.ext4 -q -F -U "$DATA_UUID" -L tbssd -E root_owner=0:0 -d "$W/seed" "$W/data.img"

@@ -349,7 +349,9 @@ in {
         optiplex.succeed("test \"$(stat -c '%U:%G %a' ${stateDir} ${mediaStore} | sort -u)\" = 'matrix-synapse:matrix-synapse 700'")
         optiplex.succeed("systemctl show -p RequiresMountsFor matrix-synapse.service | grep -q '/state'")
         optiplex.fail("test -e /var/lib/matrix-synapse")
-        optiplex.succeed("test \"$(stat -c %U ${mediaStore}/local_content/ab/cd/efghijklmnop)\" = matrix-synapse")
+        # the hermetic fixture file; the rehearsal tier runs on the real State, which does not have it (the restore
+        # phase asserts it exists in the hermetic VM)
+        optiplex.succeed("test ! -e ${mediaStore}/local_content/ab/cd/efghijklmnop || test \"$(stat -c %U ${mediaStore}/local_content/ab/cd/efghijklmnop)\" = matrix-synapse")
         # admin API lives on loopback only; a user can be made with the shared secret and logs in
         optiplex.succeed("curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8008/_synapse/admin/v1/server_version | grep -q 200")
         mx_ensure_user()

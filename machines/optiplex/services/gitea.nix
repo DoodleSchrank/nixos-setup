@@ -74,6 +74,8 @@
   # The gitea CLI as the gitea user with the service's environment, for the runbook and the runner ticket:
   # `optiplex-gitea doctor check`, `optiplex-gitea actions generate-runner-token`, `optiplex-gitea admin ...`.
   cliTool = pkgs.writeShellScriptBin "optiplex-gitea" ''
+    # git looks for a repository in the working directory; the caller's (/home/yannik) is not readable by gitea
+    cd /
     exec ${pkgs.util-linux}/bin/runuser -u gitea -- ${pkgs.coreutils}/bin/env \
       PATH=${lib.makeBinPath [pkgs.git pkgs.gnupg pkgs.coreutils]} \
       HOME=${stateDir} GITEA_WORK_DIR=${stateDir} GITEA_CUSTOM=${gc.customDir} \
