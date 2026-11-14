@@ -131,6 +131,9 @@ do_create() {
     sfdisk -d "$DEVICE" >/dev/null || die "sfdisk cannot read the partition table of $DEVICE"
     return 0
   fi
+  # the image holds the whole Arch System disk (keys, passwords): only root may read it
+  chmod 700 "$DIR"
+  umask 077
   sfdisk -d "$DEVICE" >"$IMG.sfdisk" || die "sfdisk -d failed"
   echo "$size" >"$IMG.size"
   local fifo shapid rc

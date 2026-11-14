@@ -5,7 +5,7 @@ The ordered procedure for the **Cutover** of the **Optiplex**: Arch is stopped, 
 - Written 2026-11-14 from ticket 42 of the migration (`.scratch/optiplex-nixos-migration/`, local only), its review notes and the measurements of the real-State rehearsal (ticket 48). The tickets of the individual services own the internals (State subpaths, ownership, upgrade steps); this document puts them in order and adds the cross-cutting steps.
 - It is executed in ticket 43 (HITL): the agent runs the commands and keeps the log, the human works the FritzBox, Porkbun and the client devices and says go or no-go.
 - **Status of the unverified parts.** Two tickets were still being worked on while this was written. Every step that rests on an unproven assumption carries a marker:
-  - `PENDING 45`: the kexec rehearsal (ticket 45): a non-default-port, unprivileged source, no DNS on the source, the Rollback image capture inside the installer, the pinned nixos-anywhere.
+  - Ticket 45 (rehearsals) is resolved: the nixos-anywhere pin and the offline install flags are recorded and used below. **Decision 2026-11-14 (human): the Cutover goes the USB-installer route, not kexec** (the stock kexec installer has no `r8169` driver for the Optiplex's NIC: see 5.10). What the rehearsals could not show stays under "Not verified" at the end.
   - `PENDING 39B`: the battle-tracker service on the Optiplex (ticket 39, part B): flake input, the `pnp` vhosts, the deploy unit, the webhook, and the app-repo change that deletes the Docker deployment.
   - Open questions for the human are in Appendix B.
 
@@ -22,7 +22,7 @@ The ordered procedure for the **Cutover** of the **Optiplex**: Arch is stopped, 
 |---|---|
 | **PC** | Yannik's desktop (Arch, repository checkout `~/nixos-setup`, age key, sops, nix). |
 | **Arch** | The live server before the wipe (`ssh optiplex` while it is Arch: sshd on 25560, user `yannik`, passwordless sudo; root login is impossible). |
-| **Installer** | The Optiplex booted into the kexec installer (root, port 22) or from the installer USB stick. |
+| **Installer** | The Optiplex booted from the installer USB stick (root ssh on port 22, our ISO `nixosConfigurations.optiplex-installer`). Needs the human at the box with monitor and keyboard. |
 | **NixOS Optiplex** | The installed system (`ssh optiplex`, port 25560, user `yannik`, sudo). |
 
 Every step lists **Who / where / time**, the **Do** (exact command or UI action) and the **Check** that proves it worked. Times are estimates unless the text says *measured*. Secrets appear only by sops file and key name, never as values. A command that needs a secret reads it from sops or from the host and pipes it; nothing is typed or printed.
@@ -35,7 +35,7 @@ Commands for **Arch** are written as typed in a root shell on Arch (`ssh optiple
 cd ~/nixos-setup                                  # the exact commit that was tested (git status clean)
 X=/run/user/$(id -u)/optiplex-cutover             # tmpfs: --extra-files tree, passphrase file; shredded in 16.8
 HK=~/.local/share/optiplex-hostkeys               # copy of the Optiplex's host keys (ticket 44 shreds it, not the Cutover)
-NIXOS_ANYWHERE=github:nix-community/nixos-anywhere   # PENDING 45: replace by the pinned ref ticket 45 records (its work in progress pins rev 58132e1d1f813b845382a2aeca4203b18d2ac807; not yet in the ticket)
+NIXOS_ANYWHERE=github:nix-community/nixos-anywhere/58132e1d1f813b845382a2aeca4203b18d2ac807   # the pin of tests/optiplex/rehearsal.sh (ticket 45); bump deliberately, rehearse again
 OPTI=192.168.178.20
 ```
 
@@ -75,7 +75,7 @@ Findings from that run that this runbook acts on: healthchecks needs its first u
 
 | # | Precondition | Check |
 |---|---|---|
-| 1.1 | Tickets 27 to 41, 45 to 48 are resolved. `PENDING 45`, `PENDING 39B`: 39 (part B) and 45 are still open when this is written. | map `Open work` lines ticked |
+| 1.1 | Tickets 27 to 41, 45 to 48 are resolved. `PENDING 39B`: 39 (part B) is still open when this is written. | map `Open work` lines ticked |
 | 1.2 | The toplevels build on the exact commit that will be deployed, and the tree is clean. | `git status --short` prints nothing; `git rev-parse HEAD` is noted in the log. `nix build --no-link .#nixosConfigurations.optiplex-restore.config.system.build.toplevel .#nixosConfigurations.optiplex.config.system.build.toplevel` succeeds |
 | 1.3 | The VM harness passes on the **committed** tree (a file that is not `git add`ed makes a flake build differ from the working tree). One run at a time, memory under 10 GB. | `drv=$(nix eval --raw .#checks.x86_64-linux.optiplex-vm.drvPath) && nix build "$drv^*" -L --no-link` passes (about 14 min, 835 s in ticket 46). Hard memory cap if needed: `sudo systemctl set-property --runtime nix-daemon.service MemoryHigh=9G MemoryMax=10G` |
 | 1.4 | The rehearsals with real State passed (ticket 48): restore, DB restore with times, State placement, first normal deploy, goolm. The measured Synapse restore time is in section 18's timing table. | ticket 48 Answer |
@@ -87,7 +87,7 @@ Findings from that run that this runbook acts on: healthchecks needs its first u
 | 1.10 | The host-key copy on the PC is the live host's key, and its public half is the sops `optiplex` recipient. | `ssh-keygen -y -f $HK/etc/ssh/ssh_host_ed25519_key \| ssh-to-age` prints the `optiplex` age recipient of `secrets/.sops.yaml` (`grep -c "$(ssh-keygen -y -f $HK/etc/ssh/ssh_host_ed25519_key \| ssh-to-age)" secrets/.sops.yaml` is 1); `sha256sum $HK/etc/ssh/ssh_host_ed25519_key` equals `ssh optiplex 'sudo sha256sum /etc/ssh/ssh_host_ed25519_key'` (hash only) |
 | 1.11 | Versions in the lock are not older than the live ones (migrations only go forward), and the live versions are the ones the rehearsal used. Day-of version check: step 4.3. | see step 4.3 |
 | 1.12 | The Data disk has room: the Rollback image (at most 238 GB, the NVMe's size), about 35 GB of copied State, about 2.5 GB of dumps per run, the stage directories `arch-gate/<ts>` (1.9 GB per run so far) and the local restic repository (about 46 GiB, growing). Free was 712 G on 2026-11-14 before the local repository. | on Arch: `df -h /mnt/tbssd` shows at least 300 GB free; `du -sh /mnt/tbssd/{restic-local,arch-gate}` |
-| 1.13 | The installer ISO is built and on the stick in the Optiplex (step 2.7), the kexec tarball is on the PC (step 2.8), a monitor and keyboard are at hand for the fallback. | steps 2.7, 2.8 |
+| 1.13 | The installer ISO is built and on the stick in the Optiplex (step 2.7), the nixos-anywhere pin is in the store (step 2.8), **a monitor and a keyboard are at the Optiplex for the whole install and for a rollback**. | steps 2.7, 2.8 |
 | 1.14 | The PC can build and deploy with `git.nnik.dev` down (`PENDING 39B`): step 3.3 passes. | step 3.3 |
 | 1.15 | `ssh optiplex` reaches the box **by address**, not by `opti.plex` (LAN DNS is the FritzBox during the window). | `ssh -G optiplex \| grep -E '^(hostname\|port\|user) '` shows `hostname 192.168.178.20`, `port 25560`, `user yannik` |
 | 1.16 | The battle-tracker app-repo change that deletes the Docker deployment (`deploy-web.yml`, `sync-server-image.yml`, `deploy/docker-compose.yml`, the Dockerfiles, the Portainer runbook) is ready to merge. `PENDING 39B`. | PR open and reviewed |
@@ -148,33 +148,32 @@ Do these early; none of them hurts Arch.
 - **Check:** the NVMe `nvme-KBG40ZNS256G_NVMe_KIOXIA_256GB_21LPG2BCQL42` is listed (the name in `machines/optiplex/disko.nix` and the default of `rollback-image.sh`).
 
 ### 2.7 Build the installer ISO and put it on the stick in the Optiplex
-- **Who / where / time:** agent builds on the PC, **human confirms the device**, 10 min. The stick is the install fallback and the rollback medium (if NixOS does not boot, the stick plus a monitor and keyboard are the only way).
+- **Who / where / time:** agent builds on the PC, **human confirms the device**, 10 min. **The stick is the install route** (the Cutover does not use kexec) and the rollback medium: monitor and keyboard are needed at the Optiplex from the start of the install (step 5.10) and again for a rollback (step 15).
 - **Do:**
   ```sh
   nix build .#nixosConfigurations.optiplex-installer.config.system.build.isoImage --out-link $X/installer   # about 1.5 GB
   ssh optiplex 'lsblk -o NAME,SIZE,MODEL,TRAN,FSTYPE,MOUNTPOINTS'
   ```
-  The human identifies the **empty 7.5 GB USB stick** in the list (it was `/dev/sdb`; the Data disk is the 3.6 TB SATA disk and must never be written). Then, with the stick's stable name `<by-id>` from `ls -l /dev/disk/by-id/ | grep usb`:
+  The human identifies the **empty 7.5 GB USB stick** ("Slim Line", `/dev/sdb` on Arch, one partition `sdb1` with no filesystem; the human approved using it). The Data disk is the 3.6 TB SATA disk and must never be written. Then, with the stick's stable name `<by-id>` from `ls -l /dev/disk/by-id/ | grep usb`:
   ```sh
   ssh optiplex 'sudo dd of=/dev/disk/by-id/<by-id> bs=4M conv=fsync status=none' < $X/installer/iso/*.iso
   ```
-- **Check:** `ssh optiplex 'sudo head -c <iso size in bytes> /dev/disk/by-id/<by-id> | sha256sum'` equals `sha256sum $X/installer/iso/*.iso`. The stick holds root-SSH for yannik's keys, zstd, pv, rsync, restic, ssh-to-age and the `rollback-image` command. Booting the stick cannot be tested without rebooting Arch (which must not happen): the first boot test is the day it is needed.
+- **Check:** `ssh optiplex 'sudo head -c <iso size in bytes> /dev/disk/by-id/<by-id> | sha256sum'` equals `sha256sum $X/installer/iso/*.iso`. The stick holds root-SSH for yannik's keys, zstd, pv, rsync, restic, ssh-to-age and the `rollback-image` command. The ISO was booted once in qemu (see the cheat sheet): it boots, takes an address by DHCP, root ssh with yannik's keys works and the tools are there. **Booting it on the real box cannot be tested without rebooting Arch (which must not happen) and is first done at the window.**
 
-### 2.8 Download the kexec tarball on the PC and pin the installer tool
-- **Who / where / time:** agent, PC, 5 min. `PENDING 45`: ticket 45 owns the exact tarball, the pinned nixos-anywhere ref and the flags; replace the placeholders below with what it recorded.
-- **Do:**
-  ```sh
-  curl -L -o "$X/kexec.tar.gz" <the kexec installer tarball URL ticket 45 pins>     # PENDING 45; its work in progress uses https://github.com/nix-community/nixos-images/releases/download/nixos-unstable/nixos-kexec-installer-noninteractive-x86_64-linux.tar.gz
-  nix build --no-link "$NIXOS_ANYWHERE"                                             # nixos-anywhere itself is in the store
-  ```
-  Reason for the local tarball: when Pi-hole stops (step 5.8) Arch has no DNS, and the kexec phase would otherwise download the tarball on Arch.
-- **Check:** `tar tzf $X/kexec.tar.gz | head -3` lists files; `nix run "$NIXOS_ANYWHERE" -- --help` prints the options (the ones used in steps 5.10 and 8: `--phases`, `--kexec`, `--extra-files`, `--disk-encryption-keys`, `--build-on`, `--ssh-port`, `--store-paths`).
+### 2.8 Pin nixos-anywhere
+- **Who / where / time:** agent, PC, 5 min. There is no kexec tarball: the Cutover boots the stick.
+- **Do:** `nix build --no-link "$NIXOS_ANYWHERE"` (the pinned ref of the conventions: nixos-anywhere itself is then in the store).
+- **Check:** `nix run "$NIXOS_ANYWHERE" -- --help` prints the options used in steps 8 and 3.3 (`--phases`, `--extra-files`, `--disk-encryption-keys`, `--build-on`, `--no-substitute-on-destination`, `--no-use-machine-substituters`, `--store-paths`).
 
 ### 2.9 Seed the Archive and start the pre-sync
-- **Who / where / time:** agent, Arch, 15 to 40 min the first time (Synapse media 25 GB and Seafile blocks 22 GB), minutes afterwards. The scripts come from the repository checkout on Arch at **the same commit as the PC** (`$REPO_ARCH`, Appendix B question 3).
+- **Who / where / time:** agent, Arch, 15 to 40 min the first time (Synapse media 25 GB and Seafile blocks 22 GB), minutes afterwards. The scripts run from a fresh clone on Arch at **the same commit as the PC** (`$REPO_ARCH`; the human pushes everything first).
 - **Do:**
   ```sh
-  cd $REPO_ARCH && git rev-parse HEAD        # equals the PC's
+  REPO_ARCH=~/cutover-repo
+  git clone https://github.com/DoodleSchrank/nixos-setup.git $REPO_ARCH      # public repository, no key needed
+  git -C $REPO_ARCH checkout <the Cutover commit>; git -C $REPO_ARCH rev-parse HEAD     # equals the PC's
+  rm -rf ~/gate-run                                                          # the throwaway partial copy of an earlier gate run
+  cd $REPO_ARCH
   sudo machines/optiplex/cutover/sync-state.sh --list
   sudo machines/optiplex/cutover/sync-state.sh --dry-run          # sources exist, flags valid, file counts
   sudo machines/optiplex/cutover/sync-state.sh                    # pre-sync rows: synapse, seafile, www, archive (.zsh_history)
@@ -208,7 +207,7 @@ Do these early; none of them hurts Arch.
 
 ### 3.3 Prove the build works with the network and `git.nnik.dev` unavailable
 - **Do:** `nix build --offline --no-link .#nixosConfigurations.optiplex-restore.config.system.build.toplevel .#nixosConfigurations.optiplex.config.system.build.toplevel .#nixosConfigurations.optiplex-restore.config.system.build.diskoScript`
-- **Check:** it completes without fetching anything (all paths are already in the store). `PENDING 39B`: until the battle-tracker input exists in `flake.lock` and has been archived, this is what proves that the locked input can be used while Gitea is down. `PENDING 45`: whether nixos-anywhere itself needs `--store-paths <disko script> <toplevel>` (or can evaluate offline) is recorded by ticket 45; use what it recorded in step 8.
+- **Check:** it completes without fetching anything (all paths are already in the store). `PENDING 39B`: until the battle-tracker input exists in `flake.lock` and has been archived, this is what proves that the locked input can be used while Gitea is down. Ticket 45 rehearsed the install with `--no-substitute-on-destination --no-use-machine-substituters --build-on local` (the PC pushes the closure; nothing needs the installer's network): step 8 uses those flags.
 
 ---
 
@@ -395,32 +394,28 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
 ### 5.6 Gitea: nothing to copy here
 - The Gitea files are not copied on Arch: `optiplex-gitea-restore` (step 10.3) reads `/mnt/tbssd/docker/volumes/gitea_data/_data` on the Data disk after the install, as a one-shot. (Ticket 42's copy table wanted a pre-sync of Gitea's repositories and packages; ticket 32's tool refuses to merge into a used tree, so there is none: Appendix B, contradiction 3.)
 
-### 5.7 Point Arch's resolver at the FritzBox
-- **Who / where / time:** agent, Arch, 1 min. Before Pi-hole stops. The DHCP lease and the IPv6 RDNSS entries alone renew too late; today `/etc/resolv.conf` lists `.20` and two IPv6 addresses of the same host.
-- **Do:** `nmcli con mod "Wired connection 1" ipv4.dns 192.168.178.1 ipv4.ignore-auto-dns yes ipv6.ignore-auto-dns yes && nmcli con up "Wired connection 1"` (the ssh session may drop for a moment; the address does not change)
-- **Check:** `cat /etc/resolv.conf; getent hosts github.com` lists only `192.168.178.1` and resolves. This edit is part of the Rollback image: step 15.6 undoes it.
+### 5.7 (no resolver edit any more)
+- With the USB route nothing runs on Arch after the final restic run that needs DNS (the installer runs from the stick with the FritzBox as its DNS by DHCP). The earlier step "point Arch's resolver at the FritzBox before Pi-hole stops" belonged to kexec and is dropped. Arch's resolver is not changed, so the rollback has nothing to undo there.
 
 ### 5.8 Stop Pi-hole
 - **Who / where / time:** agent, Arch, 1 min.
 - **Do:** `systemctl stop pihole-FTL`
-- **Check:** `getent hosts github.com` still resolves (through the FritzBox); `ss -tulpn | grep ':53 '` shows nothing on port 53.
+- **Check:** `ss -tulpn | grep ':53 '` shows nothing on port 53 (the LAN already uses the FritzBox, step 4.2).
 
 ### 5.9 Last look, then `sync`
 - **Who / where / time:** agent, Arch, 2 min.
 - **Do:** `systemctl list-units --type=service --state=running --no-legend; docker ps; sync`. Record the result in the log.
 - **Check:** only the base units (sshd, NetworkManager, journald, ...) run; `docker ps` is empty. The final restic snapshot IDs, the dump directory and the count file are in the log. **From here on Arch's data does not change.**
 
-### 5.10 Hand the box to the installer with kexec
-- **Who / where / time:** agent, PC, 5 to 10 min. `PENDING 45`: ticket 45 rehearses exactly this (a source with sshd on a non-default port that allows only an unprivileged user with sudo, no DNS on the source, the tarball from the PC); use the command and flags it records. The facts: Arch's sshd is on **25560** with `AllowUsers yannik`, root login is impossible, `yannik` has passwordless sudo; Secure Boot is off, the boot loader is GRUB (EFI).
-- **Do (expected shape):**
-  ```sh
-  nix run "$NIXOS_ANYWHERE" -- --flake .#optiplex-restore \
-    --target-host yannik@$OPTI --ssh-port 25560 \
-    --kexec "$X/kexec.tar.gz" --phases kexec                      # PENDING 45: flags, and whether sudo needs an option
-  ```
-  No `poweroff`: the kexec phase reboots into the installer. The USB stick is the fallback (below). Ticket 45's work in progress rehearses this shape (source with sshd on 25560, `yannik` with sudo, no root login, no DNS, no route out; tarball from the PC) and then the install with `--no-substitute-on-destination --no-use-machine-substituters`; the Rollback image there is made with `zstd`, `sfdisk -d` and `sha256sum`, so those tools exist in the kexec installer. All of it is unconfirmed until the ticket records it.
-- **Check:** after a few minutes `ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI uname -a` answers on **port 22 as root** (the installer, not Arch: the host key changes, so the PC's known_hosts is not used for this connection).
-- **If kexec fails, nothing has been written yet:** a power cycle (the human at the box) boots Arch from the NVMe again. Then the Seafile containers stay down (`restart=no`) and the Cutover is either retried or goes the USB way. **USB way:** the human plugs monitor and keyboard into the Optiplex, boots the stick (the boot menu key of the Dell BIOS), the installer gets its address by DHCP (the FritzBox reserves `.20` for the NIC's MAC) and answers as `root` on port 22 with yannik's keys; continue at step 6.
+### 5.10 Shut Arch down and boot the installer stick
+- **Who / where / time:** agent on Arch, **human at the Optiplex** (monitor and keyboard attached, the stick in a USB port), 5 to 10 min.
+- **Why not kexec (decision 2026-11-14):** the stock kexec installer of ticket 45 has a 147-module set whose only network drivers are `virtio_net`, `net_failover` and `vmxnet3`, and its kernel has no `r8169`. The Optiplex's NIC (`enp2s0`) is `r8169`, so a kexec installer would come up **without network** on the real box. It was rehearsed in a VM (virtio) and works there; it is not used. The installed system is fine (`machines/optiplex/hardware.nix` lists `r8169` in the initrd), and so is our ISO (full kernel modules).
+- **Do:**
+  1. On Arch: `sync; systemctl poweroff`. Wait until the box is off (the human sees the power LED off; `ping` stops).
+  2. **Human:** power on and press the Dell BIOS boot menu key (F12) at the logo; choose the **UEFI** entry of the USB stick (the "UEFI:" one, not a legacy one: the system installs a UEFI boot entry). If the BIOS offers no stick entry, it does not boot it: stop here and see "If the stick does not boot" below.
+  3. The installer gets its address by DHCP (the FritzBox reserves `.20` for the NIC's MAC) and uses the FritzBox as DNS. It answers as `root` on port 22 for yannik's keys; the PC's known_hosts is not used for it (new host key each time).
+- **Check (first thing):** from the PC `ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI 'uname -a; ethtool -i $(ls /sys/class/net | grep -v ^lo | head -1) | head -3; ls -d /sys/firmware/efi'` answers, the driver line says **`r8169`**, and `/sys/firmware/efi` exists (booted in UEFI mode). If it does not answer: look at the monitor (no address? wrong boot entry?), then `ip -br addr` on the console.
+- **If the stick does not boot** (no BIOS entry, or no network): nothing has been written to the disks. The human power-cycles and chooses the NVMe in the boot menu: Arch boots again (its Seafile containers have `restart=no` and stay down: start them by hand, step 15.7). Retry with another USB port or after re-writing the stick (step 2.7).
 
 ---
 
@@ -428,7 +423,7 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
 
 A full copy of the Arch System disk, taken from inside the installer while the NVMe is not mounted, so it is consistent. Only the System disk: the Data disk is never imaged.
 
-**Who / where / time:** agent, Installer, **20 to 30 min** (estimate; not measured: the PC rehearsal imaged a sparse 64 GB disk). `PENDING 45`: whether the kexec installer has `zstd` and `pv` (the ISO has both).
+**Who / where / time:** agent, Installer, **20 to 30 min** (estimate; not measured: the rehearsals imaged a small disk). The ISO has `zstd`, `pv`, `sfdisk` and the `rollback-image` command.
 
 ### 6.1 Look at the disks
 - **Do:**
@@ -438,19 +433,18 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   ```
 - **Check:** `nvme0n1` (KIOXIA, 238.5 GiB, the Arch ESP, btrfs and swap partitions) shows **no mountpoint**; the Data disk (ext4, UUID `70ca9b25-a1cd-46fa-bcbd-66780935c999`) is not mounted either.
 
-### 6.2 Put the script into the installer and make the image
+### 6.2 Make the image
 - **Do:**
   ```sh
-  inst 'cat > /root/rollback-image.sh' < machines/optiplex/cutover/rollback-image.sh    # on the stick: the same script is the `rollback-image` command
-  inst 'bash /root/rollback-image.sh create --dry-run'
-  inst 'nohup bash /root/rollback-image.sh create > /root/rollback-create.log 2>&1 < /dev/null &'
+  inst 'rollback-image create --dry-run'
+  inst 'nohup rollback-image create > /root/rollback-create.log 2>&1 < /dev/null &'
   inst 'tail -f /root/rollback-create.log'
   ```
-  The script mounts the Data disk at **`/data`** (never under `/mnt`: disko mounts the new System disk there), streams the whole NVMe through `zstd -T0` into **`/data/rollback/arch-nvme0n1.img.zst`** (that is `/mnt/tbssd/rollback/` on the Data disk) and writes, beside it, the raw `sha256` (`.sha256`), `sfdisk -d` (`.sfdisk`) and the size (`.size`). It refuses when the device is mounted, the image exists, or the Data disk has less free space than the device is big.
+  `rollback-image` is `machines/optiplex/cutover/rollback-image.sh` built into the ISO. It mounts the Data disk at **`/data`** (never under `/mnt`: disko mounts the new System disk there), streams the whole NVMe through `zstd -T0` into **`/data/rollback/arch-nvme0n1.img.zst`** (that is `/mnt/tbssd/rollback/` on the Data disk) and writes, beside it, the raw `sha256` (`.sha256`), `sfdisk -d` (`.sfdisk`) and the size (`.size`) in a directory with mode 0700 (the image holds the whole Arch System disk, keys and passwords included). The raw hash and the compression run on one single read of the disk. It refuses when the device is mounted, the image exists, or the Data disk has less free space than the device is big.
 - **Check:** the log ends with `imaged in ... s`; `ls -l /data/rollback/` lists the four files.
 
 ### 6.3 Verify it
-- **Do:** `inst 'bash /root/rollback-image.sh verify --against-device'`
+- **Do:** `inst 'rollback-image verify --against-device'`
 - **Check:** `zstd -t` passes, the decompressed `sha256` equals the recorded raw one, and the disk still equals the image. Write into the log: the image path, its size on disk, the raw `sha256` (`inst 'cat /data/rollback/arch-nvme0n1.img.zst.sha256'`) and the time it took.
 
 ### 6.4 Release the Data disk
@@ -473,33 +467,41 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   - the NIC with MAC `a4:bb:6d:7f:65:61` is there, driver `r8169` (the initrd network of the new system matches it by MAC, not by the name `enp2s0`, so a different name in the installer is fine);
   - the KIOXIA NVMe is listed under the by-id name disko targets;
   - nothing is mounted (the Data disk was released in 6.4);
-  - DNS works from the installer (the FritzBox hands out itself).
+  - `inst 'ls -d /sys/firmware/efi'` exists (UEFI boot);
+  - DNS works from the installer (the FritzBox hands out itself). The install itself does not need it (offline flags, step 8).
 
 ---
 
 ## 8. Install (nixos-anywhere, `restoreMode`)
 
-**Who / where / time:** agent, PC to Installer, **10 to 20 min** (estimate: the closure goes over the LAN from the PC). After the Rollback image is verified and the Data disk is released. The install is of **`.#optiplex-restore`**, never `.#optiplex`: PostgreSQL and MariaDB run with their roles and empty databases and every Kept service is off. `PENDING 45`: the rehearsal ran the same flags with `--phases disko,install` against a VM that was already an installer, and the pinned nixos-anywhere ref; whether `reboot` belongs in the phase list and whether `--store-paths` is needed are recorded there.
+**Who / where / time:** agent, PC to Installer, **5 to 15 min** (the PC pushes the whole closure over the LAN: 175 s in the VM rehearsal). After the Rollback image is verified and the Data disk is released. The install is of **`.#optiplex-restore`**, never `.#optiplex`: PostgreSQL and MariaDB run with their roles and empty databases and every Kept service is off. `PENDING 45`: the rehearsal ran the same flags with `--phases disko,install` against a VM that was already an installer, and the pinned nixos-anywhere ref; whether `reboot` belongs in the phase list and whether `--store-paths` is needed are recorded there.
 
 - **Do:**
   ```sh
   nix run "$NIXOS_ANYWHERE" -- --flake .#optiplex-restore \
     --extra-files "$X/extra" \
     --disk-encryption-keys /tmp/secret.key "$X/secret.key" \
-    --phases disko,install,reboot \
+    --phases disko,install \
+    --no-substitute-on-destination --no-use-machine-substituters \
     --build-on local \
     --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no \
     root@$OPTI
   ```
-  (the same command works from the USB installer; `--store-paths <disko script> <toplevel from 3.1>` if ticket 45 says so.)
-- **Check:** the command exits 0; the box reboots into the initrd (the next step); `ping $OPTI` answers within two minutes (the initrd network).
+  These are the flags ticket 45 rehearsed (`--phases disko,install`; the `reboot` phase could not be rehearsed in a qemu direct boot, so it is not used: the reboot is done by hand below, where the stick can be dealt with). Harmless noise: `umount: /mnt: not mounted` at the start of disko.
+- **Check:** the command exits 0.
+
+### 8.1 First boot from the NVMe, not from the stick
+- **Who / where / time:** agent, then **human at the box**, 5 min.
+- **Do:** `inst 'sync; systemctl poweroff'`. When the box is off, **the human pulls the stick**, then powers on. The installed system's boot entry ("Linux Boot Manager", written by the install as the first UEFI entry) boots the NVMe and stops in the initrd waiting for the passphrase.
+- **If the BIOS boots the stick again or finds no system** (the stick still in, or the entry missing): power off, make sure the stick is out, power on and press F12; choose the NVMe's "Linux Boot Manager" entry (or the NVMe by name). Never type a passphrase at the console: the unlock is the script (step 9.1).
+- **Check:** `ping $OPTI` answers within two minutes (the initrd network) and `nc -z $OPTI 2222` succeeds (port 2222 only answers in the initrd).
 
 ---
 
 ## 9. First unlock and `restoreMode` checks
 
 ### 9.1 Unlock from the PC
-- **Who / where / time:** agent, PC (human present, LAN only), 2 to 5 min.
+- **Who / where / time:** agent, PC (human present, LAN only), 2 to 5 min. The unlock is rehearsed in the VM with this very script (exit 0); the first time on the real NIC is now.
 - **Do:**
   ```sh
   machines/optiplex/unlock-optiplex.sh
@@ -742,7 +744,7 @@ The human decides, at the end of step 13 and at any earlier red item. **The time
 |---|---|---|
 | Before step 4.7 | nothing to roll back; stop the window | nothing |
 | 4.7 done, Arch still on disk (up to step 5.10) | no image needed: start the stopped containers and units again (list in `arch-running.txt`), undo the resolver edit (15.6), optionally restore `gitea-pre-prune.dump` | the pruned Gitea accounts and the two packages unless the dump is restored |
-| Rollback image taken, install not yet run | boot Arch again from the unchanged NVMe (power cycle after kexec) | nothing |
+| Rollback image taken, install not yet run | the human pulls the stick and boots the NVMe (Arch) again; start the containers of `arch-running.txt` | nothing |
 | Installed, before the normal deploy (11.2) | steps 15.1 to 15.8 | nothing new on NixOS |
 | After the normal deploy | steps 15.1 to 15.8, plus step 15.9 | messages, Vaultwarden items and documents created after 11.2; a WhatsApp re-login may be needed |
 
@@ -752,19 +754,19 @@ Going ahead (a clean step 13 and the human's "verified") **starts the Rollback i
 
 ## 15. Rollback steps
 
-**Who / where / time:** the agent runs the commands (PC and Installer), the human does Porkbun, the FritzBox and the physical boot; 60 to 120 min (the image write is 20 to 30 min of it, estimate). Log the cause first. **A rollback does not resolve ticket 43**: its findings go into the service tickets or the harness, and a new Cutover date follows.
+**The rollback needs the stick, a monitor and a keyboard at the Optiplex, plainly: the same installer ISO that installed the system restores Arch (the NixOS system has no tool to overwrite its own System disk, and if it does not boot at all there is nothing else).** Keep the stick in the box until the Rollback image's lifetime is over (ticket 44). **Who / where / time:** the agent runs the commands (PC and Installer), the human does Porkbun, the FritzBox and the physical boot; 60 to 120 min (the image write is 20 to 30 min of it, estimate). Log the cause first. **A rollback does not resolve ticket 43**: its findings go into the service tickets or the harness, and a new Cutover date follows.
 
-1. **Boot the installer.** If NixOS runs and ssh works: kexec it into the installer, `nix run "$NIXOS_ANYWHERE" -- --flake .#optiplex-restore --target-host yannik@$OPTI --ssh-port 25560 --kexec "$X/kexec.tar.gz" --phases kexec` (`PENDING 45`: not rehearsed from a running NixOS). If NixOS does not boot: the human boots the **stick in the Optiplex with a monitor and keyboard** (the stick plus the monitor and keyboard are required for the rollback too, not only for the install fallback). Check: `ssh root@$OPTI uname -a` answers.
+1. **Boot the installer stick** (human at the box): power off (a running NixOS: `sudo systemctl poweroff`), power on, F12, the **UEFI** entry of the stick, as in step 5.10. Check: `ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI uname -a` answers (use `inst` of step 6.1).
 2. **Mount the Data disk at `/data`.** `rollback-image status` mounts it (never under `/mnt`) and prints the recorded size, hash and partition table. Check: it prints the image path and the raw `sha256` noted in step 6.3.
-3. **Write the image back.** `rollback-image restore` (it asks you to type the device path; or `--yes`), about 20 to 30 min (estimate). It writes `zstd -dc | dd conv=fsync`, re-reads the disk and compares the `sha256` with the recorded raw one. On the USB stick the command is `rollback-image`; in a kexec installer use the script (`inst 'bash /root/rollback-image.sh restore'` after copying it as in step 6.2). Check: `restored and read back in ... s: sha256 equals the image`.
+3. **Write the image back.** `rollback-image restore` (it asks you to type the device path; or `--yes`), about 20 to 30 min (estimate). It writes `zstd -dc | dd conv=fsync`, re-reads the disk and compares the `sha256` with the recorded raw one. On the stick the command is `rollback-image` (`inst 'rollback-image restore'`, typed confirmation; the typed answer comes from a terminal: use `ssh -t`). Check: `restored and read back in ... s: sha256 equals the image`.
 4. **Give `/mnt/tbssd/trrnt` back to Arch's transmission, before Arch boots** (it would otherwise find files owned by 70): with the Data disk still mounted at `/data`:
    ```sh
    ssh root@$OPTI 'TRRNT=/data/trrnt STATE_TR=/data/state/transmission SAVE=/data/cutover/trrnt-watch.orig bash -s -- back' < machines/optiplex/services/transmission/restore.sh
    ```
    Check: `stat -c '%u:%g' /data/trrnt` is `169:169`; yannik's `watch/` has its original owner and mode.
 5. **Public DNS** (human, Porkbun, **unconditionally, not only "if the DNS change happened"**): the updater may have written records (once with the `*` CNAME present it even creates the apex AAAA). Look at the zone and delete the updater's four records (A and AAAA for the apex and for `*`), put the apex A back to the value noted in step 2.2 if it differs, and **then** re-create the `*` CNAME to `nnik.duckdns.org`. A CNAME cannot coexist with the `*` A and AAAA records, so the order matters. Check: `dig +short foo.nnik.dev @9.9.9.9` resolves through `nnik.duckdns.org` again (allow the 600 s TTL) and `dig +short nnik.dev AAAA` prints nothing.
-6. **FritzBox** (human): re-enable the DynDNS entry for `nnik.duckdns.org`; re-point the IPv6 port shares back to Arch's old interface ID (the coturn relay share UDP 49152-49252 can stay); set the DHCP DNS server back to `192.168.178.20` (Pi-hole); if step 16.3 already announced `fd65:c1a5:7d2b::20` as the DNSv6 server, undo that (the FritzBox announces itself, as before). Also, on Arch after it boots (the resolver edit of step 5.7 is part of the image): `nmcli con mod "Wired connection 1" ipv4.dns "" ipv4.ignore-auto-dns no ipv6.ignore-auto-dns no && nmcli con up "Wired connection 1"` (the original values are in `arch-running.txt`).
-7. **Boot Arch** (unplug the stick, `reboot` in the installer; the PC's known_hosts entry for `$OPTI:25560` matches, since the host key is the same). The native units start on boot; **containers do not**: `docker start` every container listed in `/mnt/tbssd/cutover/arch-running.txt` (the four Seafile containers have `restart=no`, and containers stopped by hand with `unless-stopped` stay stopped), the runners included; start the native units of that list that are down. Start the bridges after Synapse, never both bridge sets at once. If the UEFI boot entry does not boot Arch (the install changed it), Arch's GRUB also lives in the fallback path `/boot/EFI/boot` on the ESP (ticket 47 saw `/boot/EFI/{Dell,GRUB,boot}`): pick it in the BIOS boot menu, or fix the entry with `efibootmgr` from the stick. Not rehearsed.
+6. **FritzBox** (human): re-enable the DynDNS entry for `nnik.duckdns.org`; re-point the IPv6 port shares back to Arch's old interface ID (the coturn relay share UDP 49152-49252 can stay); set the DHCP DNS server back to `192.168.178.20` (Pi-hole); if step 16.3 already announced `fd65:c1a5:7d2b::20` as the DNSv6 server, undo that (the FritzBox announces itself, as before).
+7. **Boot Arch** (`inst 'sync; systemctl poweroff'`, the human pulls the stick, powers on; if the BIOS does not start Arch, F12 and the NVMe entry; the PC's known_hosts entry for `$OPTI:25560` matches, since the host key is the same). The native units start on boot; **containers do not**: `docker start` every container listed in `/mnt/tbssd/cutover/arch-running.txt` (the four Seafile containers have `restart=no` and stay down after **any** reboot of Arch, and containers stopped by hand with `unless-stopped` stay stopped), the runners included; start the native units of that list that are down. Start the bridges after Synapse, never both bridge sets at once. If the UEFI boot entry does not boot Arch (the install changed it), Arch's GRUB also lives in the fallback path `/boot/EFI/boot` on the ESP (ticket 47 saw `/boot/EFI/{Dell,GRUB,boot}`): pick it in the BIOS boot menu, or fix the entry with `efibootmgr` from the stick. Not rehearsed.
 8. **Optionally restore the pre-prune Gitea dump** (human decides): stop `gitea`, then `docker exec -i gitea-db-1 pg_restore -U gitea -d gitea --clean --if-exists < /mnt/tbssd/cutover/gitea-pre-prune.dump`, start `gitea`. It brings back the 31 accounts, their tokens and SSH keys and the Actions secrets; the blobs of the two deleted packages are gone for good (retired). Not rehearsed.
 9. **Tell users what is lost:** Matrix messages, Vaultwarden items, Paperless documents and Seafile changes made after step 11.2. A WhatsApp re-login may be needed if the NixOS bridges advanced their sessions (Telegram too).
 10. **Leave `/mnt/tbssd/state`, `arch-gate/`, `cutover/` and the dumps in place** (a retry reuses them; `sync-state.sh --final` makes the copies exact again). Check: Arch's services answer on their old State (Matrix `https://nnik.dev/_matrix/client/versions`, Gitea, Seafile, Vaultwarden, Paperless, Home Assistant, transmission), `systemctl --failed` is empty, the old Pi-hole answers DNS on `.20`.
@@ -819,13 +821,13 @@ The window is **about 3 to 4.75 h** if nothing goes wrong; book 5 h. "Measured" 
 
 | Step | First estimate | Now | Basis |
 |---|---|---|---|
-| 4.2 to 4.7 Resolver, version and secret checks, Gitea pre-dump steps | 15 min | 20 to 30 min | estimate (31 accounts, 4 UI steps) |
+| 4.2 to 4.7 FritzBox DNS, version and secret checks, Gitea pre-dump steps | 15 min | 20 to 30 min | estimate (31 accounts, 4 UI steps) |
 | 4.8 Stop every consumer | (in the above) | 5 min | estimate |
 | 5.2 Final gate run: dumps + SQLite copies + restic (local, then bucket) | dumps 5 min, restic at most 30 min | 10 to 30 min | Synapse dump 136 s on Arch (measured, ticket 10); restic is incremental, the bulk went up in earlier runs |
 | 5.3 to 5.5 Counts, stop DB servers, delta sync | 10 min | 10 to 15 min | estimate (the downtime rows are about 250 MB) |
-| 5.7 to 5.10 Resolver, Pi-hole, kexec hand-over | "shutdown + USB boot 5 min" | 5 to 10 min | estimate, `PENDING 45` |
+| 5.8 to 5.10 Pi-hole, shutdown, human boots the stick (BIOS menu) | "shutdown + USB boot 5 min" | 5 to 10 min | estimate; first boot of the stick on this box |
 | 6 Rollback image + verify | 20 to 30 min | 20 to 30 min | estimate; not measured (the rehearsal used a 64 GB sparse disk); `rollback-image.sh` prints the real time |
-| 7 and 8 Pre-install checks + install (disko, closure copy, reboot) | install 10 to 20 min | 12 to 25 min | estimate, `PENDING 45` |
+| 7 and 8 Pre-install checks + install (disko, closure push from the PC), 8.1 power-off and stick out | install 10 to 20 min | 10 to 20 min | closure push 175 s in the VM rehearsal (offline flags); the rest estimate |
 | 9 Unlock + restoreMode checks | 5 min | 5 min | estimate |
 | 10.1 to 10.8 Restore: **database restore** | **15 to 30 min** | **PC: 102 s total, Synapse 87 s.** Plan 2 to 10 min on the Optiplex; record the real figure here | **measured on the PC (ticket 48)**; the old figure was wrong |
 | 10.3 to 10.8 Restore: Gitea copy, `seafile-prepare-state`, transmission chown, counts | (in the above) | 5 to 15 min | estimate |
@@ -855,7 +857,7 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 |---|---|
 | 42 Cutover runbook (the whole ticket; its review note is a checklist of errors, missing rows and stale text) | this document; each checklist item in A.4 |
 | 43 Cutover execution and 44 Rollback image lifetime ("each has a review note that corrects its checklists") | A.5, A.6 |
-| 45 (kexec, real secrets), 46 (the final order, DDNS off in restoreMode, gate), 47 (sweep), 48 (real-State rehearsal) | 5.10, 8; 5, 11.1; 4, 5.7; 10 and the measured table in 0 |
+| 45 (rehearsals, pin), 46 (the final order, DDNS off in restoreMode, gate), 47 (sweep), 48 (real-State rehearsal) | 5.10, 8; 5, 11.1; 4, 5.7; 10 and the measured table in 0 |
 | 39 Part B (battle-tracker): no `pnp`/`pnp-backend` vhost yet | 1.16, 3.3, 4.7 item 7, 13.3, 13.8, 16.1 |
 | Map Notes: same hardware, one big-bang Cutover, Rollback image of the Arch System disk onto the Data disk before the wipe | 6 |
 | Map Notes: install with disko and nixos-anywhere, LUKS and btrfs on the System disk only | 8 |
@@ -869,7 +871,7 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 | 2 Days before: TTL, FritzBox UDP share, ssh aliases, LUKS, `--extra-files`, ISO, `.zsh_history`, pre-sync, calendar | 2.1 to 2.10 (TTL: 2.2, void) |
 | 3 Build ahead | 3.1 to 3.3 |
 | 4 T-0: record running state, resolver, stop runners, live-Gitea steps, stop consumers, DB servers stay up | 4.1 to 4.8 |
-| 5 Final dumps, delta sync, final restic, kexec | 5.1 to 5.10 |
+| 5 Final dumps, delta sync, final restic, hand-over to the installer | 5.1 to 5.10 |
 | 6 Rollback image | 6.1 to 6.4 |
 | 7 Pre-install checks | 7 |
 | 8 Install | 8 |
@@ -896,7 +898,7 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 | Inputs: rehearsal and verification (Seafile 12 to 13 with the 9.0.x clients; goolm fallback is libolm, not a rollback; UB500; Synapse messages lost on rollback) | 13.6, 14, 13.7, 15.9 |
 | Open points: service users in restoreMode | resolved: users, secrets and `/state/<service>` exist in restoreMode (ticket 27); 10.6 |
 | Open points: LAN DNS in the window | 4.2 (the FritzBox hands out itself), 16.3 |
-| Open points: imaging route | kexec (5.10), USB fallback (5.10, 15.1) |
+| Open points: imaging route | decided 2026-11-14: the USB installer (5.10, 2.7); kexec is not used (5.10 says why); the stick is also the rollback medium (15.1) |
 | Open points: `RUN_RETENTION_DAYS` | 4.7 item 2, 11.7 |
 | Open points: Seafile block store (copy, `/mnt/tbssd/filesync` untouched) | 17, 5.5 |
 | Open points: Let's Encrypt rate limit (5 duplicates a week) | 9.2, 11.5 |
@@ -906,8 +908,8 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 ### A.4 Ticket 42, the plan-review note (2026-11-14)
 | Item of the checklist | Step |
 |---|---|
-| kexec command cannot connect (25560, `AllowUsers yannik`): use `yannik@` with the port and sudo, root on 22 after; `.#optiplex-restore` | 5.10, 8 |
-| Arch has no DNS when kexec fetches its tarball: resolver to the FritzBox, or the tarball from the PC | 2.8, 5.7 |
+| kexec command cannot connect (25560, `AllowUsers yannik`): void with the USB route (no kexec); the install is `.#optiplex-restore` as `root@` on 22 | 5.10, 8 |
+| Arch has no DNS when kexec fetches its tarball: void with the USB route (the installer uses the FritzBox's DNS by DHCP; the install pushes the closure from the PC with the offline flags) | 5.7, 8 |
 | The final restic run: `--final` needs the DB servers; backs up the Arch source paths | 5.2 |
 | One dump directory, not `/mnt/tbssd/cutover/dumps/`; call the scripts | 5.2, 10.2 |
 | The DDNS updater does not wait for step 12: rollback deletes records unconditionally; pick one CNAME order | 11.1, 15.5 |
@@ -929,17 +931,17 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 | Carried secrets equal live, hashes only | 4.4 |
 | Gitea account pruning: exact method | 4.7 item 6 |
 | `--extra-files` modes | 2.5 |
-| If kexec fails, nothing is written yet | 5.10 |
-| Rollback medium: kexec the running NixOS, or the stick with monitor and keyboard | 15.1, 2.7 |
+| If kexec fails, nothing is written yet: with the stick, if it does not boot nothing is written either; the human boots the NVMe again | 5.10 |
+| Rollback medium: the stick with monitor and keyboard (no kexec) | 15.1, 2.7 |
 
 ### A.5 Notes of tickets 45 to 48 and the Gitea decision
 | Note | Step |
 |---|---|
 | 46: step 5 order; DDNS off in `optiplex-restore`; a fresh gate run with `ccnet/`; runner VM checks added to verification | 5, 11.5, 15.5; 1.5; 13.11, 16.2 |
-| 47: kexec access, resolver command, Secure Boot off, space, `pacman -Syu`, 31 accounts, live versions, Seafile `restart=no` | 5.10, 5.7, 4.3, 1.12, 4.7, 0, 2.10 |
+| 47: kexec access and the resolver command (void with the USB route), Secure Boot off (nothing to switch off for the stick), space, `pacman -Syu`, 31 accounts, live versions, Seafile `restart=no` | 5.10, 5.7, 4.3, 1.12, 4.7, 0, 2.10, 15.7 |
 | 47: Gitea plain delete, compare `issue`, `comment`, `review` counts, stop and restore on a drop | 4.7 items 1 and 6 |
 | 48: DB restore 102 s (Synapse 87 s); healthchecks first user; bridge "one time key"; `smartd` red only in VMs | 0 (table), 10.2, 11.4, 11.3, 9.2 and 11.6 |
-| 45: non-default-port unprivileged kexec, no DNS on the source, Rollback image capture, pinned nixos-anywhere | 2.8, 5.10, 6, 8 (`PENDING 45`) |
+| 45: kexec rehearsal (the stock tarball lacks `r8169`, so the USB route), Rollback image capture, pinned nixos-anywhere, offline install flags, `unlock-optiplex.sh` rehearsed | 5.10, 2.8, 6, 8, 9.1 |
 
 ### A.6 Ticket 43 (execution, verification, follow-ups)
 | Item | Step |
@@ -964,13 +966,13 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 
 ## Appendix B: open questions and contradictions
 
-**Questions for the human**
-1. **Bucket restore (answered in human-todos, 2026-11-14).** The gate wants a restore of the run in the Scaleway bucket. Done as a *test* restore of `2c253959` (works, SQLite copies verified) plus the full State restore from the local repository (`5692f949`); no new bucket upload. The final run of step 5.2 writes a new bucket snapshot that nobody restores before the Cutover; the weekly `restic check` and the first NixOS restore drill cover it afterwards. Say so if you want a full bucket restore of the final snapshot rehearsed (about 60 GB of download out of the free 75 GB a month).
-2. **Physical readiness.** Is the empty 7.5 GB stick in the Optiplex still `/dev/sdb`, and can the BIOS boot it? (Testing it needs a reboot, which Arch must not have before the Cutover.)
-3. **Where is the repository checkout on Arch** (`$REPO_ARCH`), and is it at the Cutover commit? The scripts run from there: `arch-gate.sh` finds `arch-db-dumps.sh` relative to itself, and `sync-state.sh` is called by path.
-4. **Gitea plain delete.** The decision to keep issues, comments and reviews on a plain delete was never tested on 1.26.4 (ticket 47 asked ticket 48 to check it; its notes do not record it). Step 4.7 item 6 checks after the first account and stops on a drop. Would you rather have it rehearsed in the rehearsal VM first?
-5. **Where does the `192.168.178.21:9100` webhook live** (a repository hook or a system hook)? Ticket 24 does not say.
-6. **FritzBox UI steps** (the IPv6 interface ID share, DynDNS, DNSv6) are described by what to set, not by menu path; the paths were never recorded.
+**Questions for the human** (all answered by the human on 2026-11-14)
+1. *Bucket restore:* a test restore of `2c253959` was done and the bucket path was proven with a slice; the final snapshot is not restored beforehand.
+2. *Physical readiness:* use the stick that sits in the Optiplex (`/dev/sdb` on Arch, 7.5 GB, one partition without a filesystem). Booting it from the BIOS is first tried at the window, with monitor and keyboard attached.
+3. *`$REPO_ARCH`:* a fresh clone of `git@github.com:DoodleSchrank/nixos-setup.git` (the repository is public, https works too) at the Cutover commit; the human pushes everything before. Delete Arch's throwaway `~/gate-run`.
+4. *Gitea plain delete:* no extra rehearsal; the in-window check of step 4.7 item 6 stands.
+5. *The `192.168.178.21:9100` webhook:* exactly one webhook, id 1, a repository webhook on `AItopia/battle-tracker` (Settings, Webhooks).
+6. *FritzBox UI:* described by setting, not by menu path: enough.
 
 **Contradictions between tickets, and how this runbook resolved them**
 1. *Order of the final restic run.* Ticket 42's step 5 and ticket 43's open point say "every service off, then the run is the last thing"; ticket 46's decision (2026-11-14) replaced it. Followed: ticket 46 (steps 5.2 to 5.5).
@@ -981,8 +983,8 @@ Each item of the map's lines for the Cutover runbook and Cutover execution, the 
 6. *FritzBox IPv6 shares.* Ticket 42 re-points them in step 12 (before the IPv6 checks); ticket 43 lists it as a follow-up after verification. Followed: step 12.1 (the verification needs IPv6), with the follow-up as a re-check (16.3).
 7. *LAN DNS.* Ticket 42's step 4 and 12 mention the PC's resolver and "the FritzBox still hands out `.20`"; the review decision is the FritzBox handing out itself, and `.20` and the DNSv6 `fd65:c1a5:7d2b::20` after verification. Followed: the decision (4.2, 16.3).
 8. *Host-key copy shredding.* Ticket 42's follow-up shreds the `--extra-files` tree after the first Backup; ticket 44 shreds `~/.local/share/optiplex-hostkeys` after the Rollback image's lifetime. Followed: both, as two different things (16.8).
-9. *Rollback medium.* Ticket 42's step 15 says "boot the installer USB" while the to-do list calls the stick a fallback. Followed: the stick, a monitor and a keyboard are required for the rollback too (15.1).
+9. *Install route and rollback medium.* Tickets 42, 43 and the to-do list chose kexec with the stick as a fallback; ticket 45's finding (the stock kexec installer has no `r8169`) and the human's decision of 2026-11-14 make **the stick the primary route**. Followed: the stick, with a monitor and a keyboard at the box, for the install and for the rollback (5.10, 8.1, 15.1).
 10. *Seafile library count.* "18 libraries" (the API) and 19 rows in `RepoInfo` (ticket 48: the built-in template is the 19th). Both are used where they apply.
 11. *`chown-trrnt.sh`.* Ticket 42 asks for it; ticket 40 already has `transmission/restore.sh forward|back`. No second script was written.
 
-**Not verified at the time of writing** (so the Cutover day will tell): the r8169 NIC in the kexec installer; the initrd unlock on the real hardware; `smartd` on the real disks; the Seafile 9.0.x clients against 13; UB500 Bluetooth; the Optiplex's real restore, imaging and deploy times; `rollback-image.sh` on the real NVMe (it was exercised only against a file); booting the stick; the first nightly Backup from NixOS.
+**Not verified at the time of writing** (so the Cutover day will tell): the stick booting on this BIOS and the r8169 NIC in the installer (the ISO is full-kernel; booted once in qemu only); the first boot of the installed NVMe (`reboot` phase not used); the initrd unlock on the real hardware; `smartd` on the real disks; the Seafile 9.0.x clients against 13; UB500 Bluetooth; the Optiplex's real restore, imaging and deploy times; `rollback-image.sh` on the real NVMe (it was exercised only against a file); booting the stick; the first nightly Backup from NixOS.
