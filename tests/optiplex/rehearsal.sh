@@ -3,7 +3,7 @@
 # with the REAL nixos-anywhere command into a qemu VM, unlocks the LUKS disk over initrd SSH from this
 # machine, and runs the checks of the tier "rehearsal" (optiplex.vmTest.checks).
 #
-#   tests/optiplex/rehearsal.sh up [--dry-run]   create images, install, unlock, run the "restore" phase checks
+#   tests/optiplex/rehearsal.sh up [--dry-run] [--kexec]   create images, install, unlock, run the "restore" phase checks
 #   tests/optiplex/rehearsal.sh ssh [cmd...]     ssh to the running VM as yannik (port 25560)
 #   tests/optiplex/rehearsal.sh normal           deploy .#optiplex-rehearsal (restoreMode off) and run the "normal" checks
 #   tests/optiplex/rehearsal.sh checks <phase>   run the checks of a phase again (restore|normal)
@@ -17,23 +17,48 @@
 #   too). It is copied into the work dir and shredded by `down`. The VM then needs the PC's ssh key in the
 #   authorized keys of yannik (machines/user.nix) - ssh-agent or ~/.ssh/config as usual.
 #
+# --kexec: rehearses the install path of the Cutover instead of installing from an installer that is already
+#   running: a source VM stands in for the live Arch box (sshd on 25560 only, `AllowUsers yannik`, no root login,
+#   sudo, NO DNS and no network at all: qemu `restrict=on`). Then, as in the runbook:
+#     1. nixos-anywhere --phases kexec --target-host yannik@... --ssh-port 25560 --kexec <local tarball>
+#        (the tarball is passed from the PC, so the source needs no DNS; the installer answers as root on 22)
+#     2. from inside the installer: the Rollback image of the System disk onto the Data disk
+#        (sfdisk dump, `dd | zstd`, raw sha256, `zstd -dc | sha256sum` verify, umount), and the sha256 of the
+#        VM's disk file on this machine must equal the raw one
+#     3. nixos-anywhere --phases disko,install --target-host root@... (no --phases reboot: qemu's direct
+#        kernel boot would boot the source again, so the VM is restarted from the NVMe through OVMF instead)
+#   then the unlock, first boot and checks as usual. Offline end to end: no substituters on the installer.
+#   What only the Cutover can show: that the r8169 NIC comes up in the kexec installer, that Arch's own sshd/sudo
+#   behave as the facts of ticket 47 say, and that Arch's kernel can kexec at all.
+#   The kexec tarball is KEXEC_TARBALL (default: ~/.cache/optiplex-rehearsal/..., downloaded once, sha256 printed).
+#
+# The unlock is machines/optiplex/unlock-optiplex.sh itself, run against the VM with a throwaway luks.yaml
+# (sops-encrypted to a throwaway age key; the initrd host key is pinned in its known_hosts).
+#
 # What stays real: the nixos-anywhere command (--extra-files, --disk-encryption-keys), the disko layout,
 # the initrd unlock on 2222, the LAN address 192.168.178.20 (qemu user networking on 192.168.178.0/24 shadows
 # the real LAN, so the VM can never reach or collide with the live box; ports are forwarded to 127.0.0.1 only).
-# What differs: the installer is a NixOS VM that is already running (no kexec phase; the kexec rehearsal is
-# separate, see the ticket), the disk is an NVMe at a different by-id name (overlay-rehearsal.nix).
+# What differs: without --kexec the installer is a NixOS VM that is already running (no kexec phase),
+# the disk is an NVMe at a different by-id name (overlay-rehearsal.nix).
 #
 # Real State: restore it from Backup into the Data disk by hand once `up` is done (restic restore as root in the
 # VM; never forget/prune). Resource needs: ~60 GB for the Data image (sparse), 8 GB RAM, 4 cores.
 # Environment: REHEARSAL_DIR (work dir, default /var/tmp/optiplex-rehearsal), DATA_SIZE (default 60G),
-# REHEARSAL_RAM (default 8192), NIXOS_ANYWHERE (flake ref, default github:nix-community/nixos-anywhere).
+# REHEARSAL_RAM (default 8192), SYSTEM_SIZE (default 64G), KEXEC_TARBALL, NIXOS_ANYWHERE (flake ref, pinned
+# to a fixed revision below; bump it deliberately and re-run the rehearsals).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 W="${REHEARSAL_DIR:-/var/tmp/optiplex-rehearsal}"
 DATA_SIZE="${DATA_SIZE:-60G}"
 RAM="${REHEARSAL_RAM:-8192}"
-NIXOS_ANYWHERE="${NIXOS_ANYWHERE:-github:nix-community/nixos-anywhere}"
+# The pinned nixos-anywhere (nix-community/nixos-anywhere master of 2026-10-28, reports version 1.13.0, the one
+# the real-secret rehearsal of 2026-11-14 ran). The Cutover runbook uses exactly this ref.
+NIXOS_ANYWHERE_REV=58132e1d1f813b845382a2aeca4203b18d2ac807
+NIXOS_ANYWHERE="${NIXOS_ANYWHERE:-github:nix-community/nixos-anywhere/$NIXOS_ANYWHERE_REV}"
+SYSTEM_SIZE="${SYSTEM_SIZE:-64G}"
+KEXEC_URL=https://github.com/nix-community/nixos-images/releases/download/nixos-unstable/nixos-kexec-installer-noninteractive-x86_64-linux.tar.gz
+KEXEC_TARBALL="${KEXEC_TARBALL:-${XDG_CACHE_HOME:-$HOME/.cache}/optiplex-rehearsal/nixos-kexec-installer-noninteractive-x86_64-linux.tar.gz}"
 DATA_UUID=70ca9b25-a1cd-46fa-bcbd-66780935c999
 HOST=192.168.178.20
 if command -v nixos-rebuild >/dev/null; then NIXOS_REBUILD=(nixos-rebuild); else NIXOS_REBUILD=(nix run "nixpkgs#nixos-rebuild" --); fi
@@ -81,7 +106,7 @@ do_down() {
   done
   sleep 1
   if [ -d "$W" ]; then
-    find "$W" -type f \( -name '*key*' -o -name 'secret*' -o -name 'ssh_host_*' -o -name 'id_*' \) -exec shred -u {} + 2>/dev/null || true
+    find "$W" -type f \( -name '*key*' -o -name 'secret*' -o -name 'ssh_host_*' -o -name 'id_*' -o -name 'luks*' \) -exec shred -u {} + 2>/dev/null || true
     rm -rf "$W"
   fi
 }
@@ -101,7 +126,14 @@ do_checks() { # <phase>
 
 case "$cmd" in
   up)
-    dry=0; [ "${1:-}" = "--dry-run" ] && dry=1
+    dry=0; kexec=0
+    for a in "$@"; do
+      case "$a" in
+        --dry-run) dry=1 ;;
+        --kexec) kexec=1 ;;
+        *) die "unknown option $a (up [--dry-run] [--kexec])" ;;
+      esac
+    done
     [ -e "$W" ] && die "$W exists; run '$0 down' first"
     [ -c /dev/kvm ] || die "no /dev/kvm"
     avail_gb=$(df -BG --output=avail "$(dirname "$W")" | tail -1 | tr -dc 0-9)
@@ -113,7 +145,17 @@ case "$cmd" in
     log "building the pieces"
     nix build --no-link --print-out-paths .#optiplex-rehearsal-qemu > "$W/qemu.path"
     nix build --no-link --print-out-paths .#optiplex-rehearsal-ovmf > "$W/ovmf.path"
-    installer="$(nix build --no-link --print-out-paths .#optiplex-rehearsal-installer)"
+    if [ "$kexec" = 1 ]; then
+      installer="$(nix build --impure --no-link --print-out-paths -f tests/optiplex/rehearsal-source-vm.nix)"
+      [ -s "$KEXEC_TARBALL" ] || {
+        log "downloading the kexec installer tarball (once) to $KEXEC_TARBALL"
+        mkdir -p "$(dirname "$KEXEC_TARBALL")"
+        curl -fSL -o "$KEXEC_TARBALL.part" "$KEXEC_URL" && mv "$KEXEC_TARBALL.part" "$KEXEC_TARBALL"
+      }
+      echo "kexec tarball: $KEXEC_TARBALL, sha256 $(sha256sum "$KEXEC_TARBALL" | cut -d' ' -f1)"
+    else
+      installer="$(nix build --no-link --print-out-paths .#optiplex-rehearsal-installer)"
+    fi
     if [ "$dry" = 1 ]; then
       flake_attr=optiplex-rehearsal-dryrun; touch "$W/dryrun"
       install -m600 "$(nix build --no-link --print-out-paths .#test-ssh-key)" "$W/id_snakeoil"
@@ -127,8 +169,8 @@ case "$cmd" in
       installer_key="$W/id_snakeoil"
     fi
 
-    log "images: System disk (NVMe), Data disk (ext4, real UUID, sparse $DATA_SIZE)"
-    truncate -s 64G "$W/system.img"   # sparse; the 16G swapfile of disko.nix leaves room for the Nix store
+    log "images: System disk (NVMe, sparse $SYSTEM_SIZE), Data disk (ext4, real UUID, sparse $DATA_SIZE)"
+    truncate -s "$SYSTEM_SIZE" "$W/system.img"   # sparse; the 16G swapfile of disko.nix leaves room for the Nix store
     truncate -s "$DATA_SIZE" "$W/data.img"
     mkdir -p "$W/seed/state"
     mkfs.ext4 -q -F -U "$DATA_UUID" -L tbssd -E root_owner=0:0 -d "$W/seed" "$W/data.img"
@@ -145,6 +187,12 @@ case "$cmd" in
       cp "$REHEARSAL_HOSTKEYS"/etc/ssh/ssh_host_ed25519_key "$REHEARSAL_HOSTKEYS"/etc/ssh/ssh_host_rsa_key "$W/extra/etc/ssh/"
       ssh-keygen -y -f "$W/extra/etc/ssh/ssh_host_ed25519_key" > "$W/extra/etc/ssh/ssh_host_ed25519_key.pub"
     fi
+    # a throwaway luks.yaml for unlock-optiplex.sh: the run's LUKS passphrase, sops-encrypted to a throwaway age key
+    # (values are never printed)
+    nix shell nixpkgs#age -c age-keygen -o "$W/age.key" 2>/dev/null
+    python3 -I -c 'import json,sys; print(json.dumps({"luks_passphrase": open(sys.argv[1]).read()}))' "$W/secret.key" > "$W/luks.json"
+    sops --encrypt --age "$(nix shell nixpkgs#age -c age-keygen -y "$W/age.key")" --input-type yaml --output-type yaml "$W/luks.json" > "$W/luks.yaml"
+    shred -u "$W/luks.json"
     # nixos-anywhere keeps the modes of the --extra-files tree. /etc/ssh must stay 0755: sshd's unprivileged
     # child reads /etc/ssh/authorized_keys.d/<user> and a 0700 /etc/ssh (from umask 077) locks everybody out.
     chmod 755 "$W/extra" "$W/extra/etc" "$W/extra/etc/ssh"
@@ -154,26 +202,111 @@ case "$cmd" in
     cmp -s <(cut -d' ' -f2 "$W/extra/etc/secrets/initrd/ssh_host_ed25519_key.pub") <(cut -d' ' -f2 "$W/extra/etc/ssh/ssh_host_ed25519_key.pub") \
       && die "initrd key equals the main key"
 
-    log "starting the installer VM (blank NVMe System disk, Data disk attached)"
+    SECONDS=0
     export NIX_DISK_IMAGE="$W/installer-root.qcow2"
-    export QEMU_NET_OPTS="net=192.168.178.0/24,host=192.168.178.1,hostfwd=tcp:127.0.0.1:2200-:22"
+    if [ "$kexec" = 1 ]; then
+      log "starting the SOURCE VM (stand-in for the live Arch box: sshd 25560, no DNS, no network; NVMe + Data disk attached)"
+      export QEMU_NET_OPTS="net=192.168.178.0/24,host=192.168.178.1,dhcpstart=192.168.178.20,restrict=on,hostfwd=tcp:127.0.0.1:25560-:25560,hostfwd=tcp:127.0.0.1:2200-:22"
+    else
+      log "starting the installer VM (blank NVMe System disk, Data disk attached)"
+      export QEMU_NET_OPTS="net=192.168.178.0/24,host=192.168.178.1,hostfwd=tcp:127.0.0.1:2200-:22"
+    fi
     export QEMU_OPTS="-cpu host -drive file=$W/system.img,if=none,id=sys,format=raw -device nvme,serial=REHEARSAL0001,drive=sys -drive file=$W/data.img,if=none,id=data,format=raw -device virtio-blk-pci,drive=data"
     ( "$installer"/bin/run-*-vm > "$W/installer.log" 2>&1 & echo $! > "$W/installer.pid" )
     ISSH="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -i $installer_key -o IdentitiesOnly=yes -p 2200 root@127.0.0.1"
-    wait_for "the installer VM (ssh on 2200)" 120 $ISSH true
-    # the disk must be the one the config expects (by-id name of the qemu NVMe)
-    $ISSH 'ls /dev/disk/by-id/ | grep -q nvme-QEMU_NVMe_Ctrl_REHEARSAL0001' || die "NVMe System disk not visible in the installer"
+    NIXA=(nix run "$NIXOS_ANYWHERE" --)
+    if [ "$kexec" = 1 ]; then
+      SSHB="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 -i $installer_key -o IdentitiesOnly=yes"
+      SSRC="$SSHB -p 25560 yannik@127.0.0.1"
+      wait_for "the source VM (ssh as yannik on 25560)" 120 $SSRC true
+      log "the source VM behaves like Arch: no root login, sudo works, no DNS, no route out, nothing on 22"
+      $SSRC 'sudo -n true' || die "yannik has no passwordless sudo on the source"
+      ! $SSHB -p 25560 root@127.0.0.1 true 2>/dev/null || die "root login works on the source"
+      ! $ISSH true 2>/dev/null || die "the source answers ssh on 22"
+      ! $SSRC 'getent hosts nixos.org' >/dev/null || die "the source resolves names"
+      ! $SSRC 'curl -sS -m 4 -o /dev/null https://1.1.1.1' 2>/dev/null || die "the source reaches the internet"
+      # an Arch-like System disk: GPT + ext4 with 1 GiB of random data, mounted (the live OS runs from it)
+      $SSRC 'sudo bash -s' <<'EOF'
+set -euo pipefail
+dev=/dev/disk/by-id/nvme-QEMU_NVMe_Ctrl_REHEARSAL0001
+parted -s "$dev" mklabel gpt mkpart arch-root ext4 1MiB 100%
+udevadm settle
+mkfs.ext4 -q -F "$dev-part1"
+mkdir -p /mnt/arch && mount "$dev-part1" /mnt/arch
+dd if=/dev/urandom of=/mnt/arch/blob bs=1M count=1024 status=none
+echo "arch stand-in" > /mnt/arch/os-release
+sync
+EOF
+      log "[$SECONDS s] phase 1: nixos-anywhere --phases kexec as yannik on 25560 (tarball from this machine, installer on 22)"
+      "${NIXA[@]}" \
+        --flake ".#$flake_attr" \
+        --phases kexec \
+        --kexec "$KEXEC_TARBALL" \
+        --target-host yannik@127.0.0.1 --ssh-port 25560 --post-kexec-ssh-port 2200 -i "$installer_key" \
+        --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no
+      log "[$SECONDS s] kexec done; inside the installer as root on 22 (the rehearsal reaches it through 2200)"
+      $ISSH 'grep -E "^(NAME|VARIANT_ID)=" /etc/os-release; uname -r; ip -br addr show; findmnt -n /mnt || true'
+      log "[$SECONDS s] phase 2: Rollback image of the System disk onto the Data disk, from inside the installer"
+      cap="$($ISSH "DATA_UUID=$DATA_UUID bash -s" <<'EOF'
+set -euo pipefail
+dev=/dev/disk/by-id/nvme-QEMU_NVMe_Ctrl_REHEARSAL0001   # the real box: /dev/nvme0n1
+mkdir -p /data
+mount "/dev/disk/by-uuid/$DATA_UUID" /data
+mkdir -p /data/rollback && cd /data/rollback
+sfdisk -d "$dev" > arch-nvme0n1.sfdisk
+mkfifo zin
+zstd -T0 -q -o arch-nvme0n1.img.zst < zin &
+zp=$!
+dd if="$dev" bs=16M status=none | tee zin | sha256sum | cut -d' ' -f1 > arch-nvme0n1.raw.sha256
+wait "$zp"
+rm zin
+echo "raw_sha256=$(cat arch-nvme0n1.raw.sha256)"
+echo "verify_sha256=$(zstd -dc arch-nvme0n1.img.zst | sha256sum | cut -d' ' -f1)"
+echo "image_bytes=$(stat -c %s arch-nvme0n1.img.zst)"
+echo "disk_bytes=$(blockdev --getsize64 "$dev")"
+sync
+cd / && umount /data
+if findmnt /data >/dev/null; then echo "data_still_mounted=1"; fi
+EOF
+)"
+      echo "$cap"
+      raw="$(sed -n 's/^raw_sha256=//p' <<<"$cap")"; ver="$(sed -n 's/^verify_sha256=//p' <<<"$cap")"
+      [ -n "$raw" ] && [ "$raw" = "$ver" ] || die "Rollback image: the decompressed image does not match the raw hash ($raw vs $ver)"
+      ! grep -q data_still_mounted <<<"$cap" || die "the Data disk is still mounted"
+      log "[$SECONDS s] hashing the System disk file on this machine (the installer is idle, nothing writes to it)"
+      host_sha="$(sha256sum "$W/system.img" | cut -d' ' -f1)"
+      [ "$host_sha" = "$raw" ] || die "the VM's pre-install disk ($host_sha) differs from the captured image ($raw)"
+      echo "ROLLBACK IMAGE OK: sha256 of the disk inside the installer = zstd -dc of the image = sha256 of the disk file on this machine = $raw"
+      log "[$SECONDS s] pre-install checks in the installer"
+      $ISSH 'ls /dev/disk/by-id/ | grep -q nvme-QEMU_NVMe_Ctrl_REHEARSAL0001 && echo "NVMe System disk by-id present"; ! findmnt /data && ! findmnt /mnt && echo "Data disk and /mnt not mounted"'
+      log "[$SECONDS s] phase 3: nixos-anywhere --phases disko,install as root on 22 (offline: no substituters)"
+      "${NIXA[@]}" \
+        --flake ".#$flake_attr" \
+        --extra-files "$W/extra" \
+        --disk-encryption-keys /tmp/secret.key "$W/secret.key" \
+        --phases disko,install \
+        --no-substitute-on-destination --no-use-machine-substituters \
+        --ssh-port 2200 -i "$installer_key" \
+        --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no \
+        --build-on local \
+        root@127.0.0.1
+      log "[$SECONDS s] install done"
+    else
+      wait_for "the installer VM (ssh on 2200)" 120 $ISSH true
+      # the disk must be the one the config expects (by-id name of the qemu NVMe)
+      $ISSH 'ls /dev/disk/by-id/ | grep -q nvme-QEMU_NVMe_Ctrl_REHEARSAL0001' || die "NVMe System disk not visible in the installer"
 
-    log "nixos-anywhere (disko + install; --extra-files, --disk-encryption-keys)"
-    nix run "$NIXOS_ANYWHERE" -- \
-      --flake ".#$flake_attr" \
-      --extra-files "$W/extra" \
-      --disk-encryption-keys /tmp/secret.key "$W/secret.key" \
-      --phases disko,install \
-      --ssh-port 2200 -i "$installer_key" \
-      --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no \
-      --build-on local \
-      root@127.0.0.1
+      log "nixos-anywhere (disko + install; --extra-files, --disk-encryption-keys)"
+      "${NIXA[@]}" \
+        --flake ".#$flake_attr" \
+        --extra-files "$W/extra" \
+        --disk-encryption-keys /tmp/secret.key "$W/secret.key" \
+        --phases disko,install \
+        --ssh-port 2200 -i "$installer_key" \
+        --ssh-option UserKnownHostsFile=/dev/null --ssh-option StrictHostKeyChecking=no \
+        --build-on local \
+        root@127.0.0.1
+    fi
 
     log "restarting from the installed NVMe disk (OVMF, systemd-boot)"
     $ISSH 'sync' || true
@@ -186,8 +319,11 @@ case "$cmd" in
     initrd_ssh() { ssh $(sshopts_for "$W/kh_initrd") -p 2222 root@127.0.0.1 "$@"; }
     # shellcheck disable=SC2046
     wait_for "the initrd sshd on 2222 (ssh as root; for a real run the PC's key must be in yannik's authorized keys)" 200 initrd_ssh true
-    # shellcheck disable=SC2046
-    ssh $(sshopts_for "$W/kh_initrd") -p 2222 root@127.0.0.1 'systemd-tty-ask-password-agent --query' < "$W/secret.key" || true
+    # machines/optiplex/unlock-optiplex.sh itself: it reads the throwaway luks.yaml, pins the initrd host key
+    # through the pre-seeded known_hosts file and pipes the passphrase into the initrd's password agent
+    SOPS_AGE_KEY_FILE="$W/age.key" UNLOCK_SECRET="$W/luks.yaml" UNLOCK_KNOWN_HOSTS="$W/kh_initrd" \
+      UNLOCK_SSH_OPTS="${IDFILE:+-i $IDFILE -o IdentitiesOnly=yes} -o BatchMode=yes" \
+      "$repo/machines/optiplex/unlock-optiplex.sh" 127.0.0.1 && echo "unlock-optiplex.sh: exit 0" || echo "unlock-optiplex.sh: exit $?"
     log "waiting for the booted system on 25560 (host key pinned to the MAIN key)"
     wait_for "sshd on 25560" 200 main_ssh true
     main_ssh 'hostname; systemctl is-system-running || true; findmnt -n -o TARGET,SOURCE,OPTIONS /; swapon --show'

@@ -77,12 +77,15 @@ in
     nodes.outside = clientNode {vlan = 2; v4 = "203.0.113.10"; v6 = "2001:db8:2::10";};
 
     testScript = {nodes, ...}: let
+      # The matrix runs after the deploy (restoreMode off), so it reads the NORMAL configuration:
+      # ports opened only in normal mode (51413, NFS) are in it, the restore-mode config does not have them.
       cfg = nodes.optiplex;
+      normal = cfg.specialisation.normal.configuration; # only for the ports: its checks refer to the parent's specialisation
       portsOf = ranges: ports: lib.unique (ports ++ lib.concatMap (r: [r.from ((r.from + r.to) / 2) r.to]) ranges);
-      publicTcp = portsOf cfg.networking.firewall.allowedTCPPortRanges cfg.networking.firewall.allowedTCPPorts;
-      publicUdp = portsOf cfg.networking.firewall.allowedUDPPortRanges cfg.networking.firewall.allowedUDPPorts;
-      lanTcp = cfg.optiplex.firewall.lanOnly.tcp;
-      lanUdp = cfg.optiplex.firewall.lanOnly.udp;
+      publicTcp = portsOf normal.networking.firewall.allowedTCPPortRanges normal.networking.firewall.allowedTCPPorts;
+      publicUdp = portsOf normal.networking.firewall.allowedUDPPortRanges normal.networking.firewall.allowedUDPPorts;
+      lanTcp = normal.optiplex.firewall.lanOnly.tcp;
+      lanUdp = normal.optiplex.firewall.lanOnly.udp;
       canary = 4444;
       missingPublic =
         (lib.subtractLists publicTcp decidedPublicTcp)
@@ -161,16 +164,32 @@ in
           optiplex.wait_until_succeeds("journalctl -u listeners | grep -q ready")
           # Ports that a real service of the config holds (sshd 25560, Caddy 443, blocky 53, ...) are
           # skipped by the listeners. Stop the owner so the echo listener can take its place:
-          # the firewall verdict is what is tested here, not the service.
+          # the firewall verdict is what is tested here, not the service. Three kinds of owner:
+          #   a service process: the unit of its cgroup;
+          #   systemd itself (pid 1, a socket unit such as rpcbind's 111): the socket unit that lists the port;
+          #   the kernel (nfsd 2049, lockd 4001: no process in `ss`): nfs-server.service, which owns them.
           skipped = [l.split()[1].rstrip(":") for l in optiplex.succeed("journalctl -u listeners --no-pager -o cat").splitlines() if l.startswith("skip ")]
+          to_stop = []
           for spec in skipped:
               proto, port = spec.split(":")
               flag = "-ltnp" if proto == "tcp" else "-lunp"
               pids = optiplex.succeed(f"ss -H {flag} 'sport = :{port}' | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u || true").split()
+              held_by = []
               for pid in pids:
                   unit = optiplex.succeed(f"basename $(cut -d: -f3 /proc/{pid}/cgroup)").strip()
-                  print(f"{spec} is held by {unit}; stopping it for the matrix")
-                  optiplex.succeed(f"systemctl stop {unit}")
+                  if unit == "init.scope":
+                      socks = optiplex.succeed(f"systemctl list-sockets --all --no-legend --plain | awk '$1 ~ /:{port}$/ {{print $2}}'").split()
+                      assert socks, f"{spec} is held by systemd but no socket unit lists it"
+                      held_by += socks
+                  else:
+                      held_by.append(unit)
+              if not pids:
+                  held_by.append("nfs-server.service")
+              print(f"{spec} is held by {held_by}")
+              to_stop += [u for u in held_by if u not in to_stop]
+          for unit in to_stop:
+              print(f"stopping {unit} for the matrix")
+              optiplex.succeed(f"systemctl stop {unit}")
           if skipped:
               optiplex.succeed("systemctl stop listeners")
               optiplex.succeed("systemd-run --unit=listeners2 " + listeners + " " + " ".join(listen))
