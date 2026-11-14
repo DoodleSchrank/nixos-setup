@@ -63,6 +63,7 @@ ls -l /dev/disk/by-id/ | grep usb          # on Arch: the stick's <by-id>
 ssh optiplex 'sudo dd of=/dev/disk/by-id/<by-id> bs=4M conv=fsync status=none' < $X/installer/iso/*.iso
 ssh optiplex 'sudo head -c <iso size in bytes> /dev/disk/by-id/<by-id> | sha256sum'; sha256sum $X/installer/iso/*.iso   # expect: equal
 ```
+The ISO was booted once in qemu (UEFI): up in 16 s, DHCP, root ssh with the yannik keys, tools and the `r8169` module present. Not tested: the stick on the real BIOS and the real NIC.
 
 **2.8, 3.1, 3.3** PC: pin and build ahead, then prove it offline.
 ```sh

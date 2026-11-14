@@ -158,7 +158,7 @@ Do these early; none of them hurts Arch.
   ```sh
   ssh optiplex 'sudo dd of=/dev/disk/by-id/<by-id> bs=4M conv=fsync status=none' < $X/installer/iso/*.iso
   ```
-- **Check:** `ssh optiplex 'sudo head -c <iso size in bytes> /dev/disk/by-id/<by-id> | sha256sum'` equals `sha256sum $X/installer/iso/*.iso`. The stick holds root-SSH for yannik's keys, zstd, pv, rsync, restic, ssh-to-age and the `rollback-image` command. The ISO was booted once in qemu (see the cheat sheet): it boots, takes an address by DHCP, root ssh with yannik's keys works and the tools are there. **Booting it on the real box cannot be tested without rebooting Arch (which must not happen) and is first done at the window.**
+- **Check:** `ssh optiplex 'sudo head -c <iso size in bytes> /dev/disk/by-id/<by-id> | sha256sum'` equals `sha256sum $X/installer/iso/*.iso`. The stick holds root-SSH for yannik's keys, zstd, pv, rsync, restic, ssh-to-age and the `rollback-image` command. The ISO was booted once in qemu on 2026-11-14 (UEFI, 2 GB RAM, user networking, a throwaway 2 GB disk): ssh was up after about 16 s, the address came by DHCP, root ssh with yannik's keys worked, `rollback-image`, zstd, pv, rsync, restic, ssh-to-age, sfdisk, cryptsetup, btrfs and ethtool were present and the kernel has the `r8169` module (qemu has a virtio NIC, so the real NIC stays untested). **Booting it on the real box cannot be tested without rebooting Arch (which must not happen) and is first done at the window.**
 
 ### 2.8 Pin nixos-anywhere
 - **Who / where / time:** agent, PC, 5 min. There is no kexec tarball: the Cutover boots the stick.
