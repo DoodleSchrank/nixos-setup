@@ -123,6 +123,13 @@
       optiplex-rehearsal-dryrun-normal = self.nixosConfigurations.optiplex-rehearsal.extendModules {
         modules = [ ./tests/optiplex/test-secrets.nix ./tests/optiplex/dryrun.nix ];
       };
+      # The Cutover's imaging and rollback medium (USB stick): a minimal installer ISO with root SSH for yannik's
+      # keys. nix build .#nixosConfigurations.optiplex-installer.config.system.build.isoImage
+      optiplex-installer = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs.optiplexKeys = self.nixosConfigurations.optiplex.config.users.users.yannik.openssh.authorizedKeys.keys;
+        modules = [ ./machines/optiplex-installer ];
+      };
     };
 
     # VM tests of the Optiplex (ticket "VM test harness"): see tests/optiplex/.
