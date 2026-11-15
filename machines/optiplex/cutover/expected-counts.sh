@@ -32,6 +32,9 @@
 # network) or a sqlite3 found in the Nix store.
 # Test hooks: COUNTS_PREFIX is put in front of every file path (a fake tree); no database is touched with --skip-db.
 set -euo pipefail
+# sort and comm must agree on the collation (comm warns "not in sorted order" for keys like files.www_opti_plex
+# when sort ran in C and comm in en_US.UTF-8); nothing in here depends on the caller's locale.
+export LC_ALL=C
 
 die() { echo "expected-counts: $*" >&2; exit 1; }
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
@@ -189,10 +192,12 @@ do_capture() {
   fi
 
   if ((!SKIP_DB)); then
-    add synapse.events "select count(*) from events (PostgreSQL synapse)" pg synapse "select count(*) from events"
-    add synapse.max_stream_ordering "select max(stream_ordering) from events" pg synapse "select max(stream_ordering) from events"
-    add synapse.users "select count(*) from users" pg synapse "select count(*) from users"
-    add synapse.rooms "select count(*) from rooms" pg synapse "select count(*) from rooms"
+    local sy=synapse # the database is called matrix-synapse on NixOS
+    [[ $HOST == arch ]] || sy=matrix-synapse
+    add synapse.events "select count(*) from events (PostgreSQL $sy)" pg "$sy" "select count(*) from events"
+    add synapse.max_stream_ordering "select max(stream_ordering) from events (PostgreSQL $sy)" pg "$sy" "select max(stream_ordering) from events"
+    add synapse.users "select count(*) from users (PostgreSQL $sy)" pg "$sy" "select count(*) from users"
+    add synapse.rooms "select count(*) from rooms (PostgreSQL $sy)" pg "$sy" "select count(*) from rooms"
     local g=(gitea)
     [[ $HOST == arch ]] && g=(gitea gitea-db-1 gitea)
     local t

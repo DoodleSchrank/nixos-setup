@@ -22,7 +22,7 @@ REPO_ARCH=~/cutover-repo
 
 ## Day before
 
-**2.1** FritzBox (human): lower the DHCP lease time. **2.3** FritzBox (human): share UDP 49152-49252 to .20; 3478 and 51413 TCP+UDP. **2.2** Porkbun (human): note the records (apex A, `*` CNAME, TTLs).
+**2.1** FritzBox (human): lower the DHCP lease time. **2.3** FritzBox (human): share UDP 49152-49252 to .20; 3478 and 51413 TCP+UDP. **2.2** Porkbun (human): note the records (ALIAS `nnik.dev`, ALIAS `www.nnik.dev`, CNAME `*`, all to `nnik.duckdns.org`; there is no plain apex A; TTLs).
 
 **2.4** PC: add `Port 25580` to the `~/.ssh/config` aliases `story-review`, `issue`, `wiki`, `improve`.
 ```sh
@@ -123,19 +123,20 @@ union all select 'review', count(*) from review union all select 'repository', c
 SQL
 docker exec -i gitea-db-1 psql -U gitea -d gitea -At < /mnt/tbssd/cutover/gitea-counts.sql | tee /mnt/tbssd/cutover/gitea-counts-before.txt
 ```
-**Human, UI:** delete the webhook (repo `AItopia/battle-tracker`, Settings, Webhooks), the 4 Actions secrets, the packages `battle-tracker-web` and `bt-sync-server`; run the `cleanup_packages` cron; create the short-lived admin token `cutover-prune`.
+**Human, UI:** delete the webhook (repo `AItopia/battle-tracker`, Settings, Webhooks), the 4 Actions secrets, the packages `battle-tracker-web` and `bt-sync-server`; run the `cleanup_packages` cron; create the short-lived admin token `cutover-prune` with the scopes `write:admin` and `write:organization` (else 401); **the human types it into the hidden prompt below, never into the chat**.
 ```sh
 docker exec gitea-db-1 psql -U gitea -d gitea -At -c 'select count(*) from webhook'     # expect: 0
 read -rs GITEA_ADMIN_TOKEN; export GITEA_ADMIN_TOKEN
 API=http://127.0.0.1:25579/api/v1
 curl -fsS -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users?limit=50" | jq -r '.[].login' | grep -vx Yannik | sort > /mnt/tbssd/cutover/gitea-accounts.txt
 wc -l < /mnt/tbssd/cutover/gitea-accounts.txt                       # expect: 31
+for u in bt-design bt-implement bt-plan bt-registry bt-review bt-spec bt-test bt-verify; do curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/orgs/AItopia/members/$u"; done     # org members: else the delete answers 422
 first=$(head -1 /mnt/tbssd/cutover/gitea-accounts.txt)
 curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users/$first"
 docker exec -i gitea-db-1 psql -U gitea -d gitea -At < /mnt/tbssd/cutover/gitea-counts.sql > /mnt/tbssd/cutover/gitea-counts-after-first.txt
 diff /mnt/tbssd/cutover/gitea-counts-before.txt /mnt/tbssd/cutover/gitea-counts-after-first.txt && echo SAME
 ```
-**STOP** unless `SAME` (else restore the dump, runbook 4.7 item 6). Then:
+**STOP** unless `SAME` (else restore the dump, runbook 4.7 item 6). Then (a failure printed for an account is a missed org member: remove it from `AItopia`, run the loop a second time):
 ```sh
 tail -n +2 /mnt/tbssd/cutover/gitea-accounts.txt | while read -r u; do curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users/$u"; done
 unset GITEA_ADMIN_TOKEN
@@ -144,8 +145,9 @@ unset GITEA_ADMIN_TOKEN
 
 **4.8** Arch: stop every consumer. **Write down the time: the 24 h rollback time box starts.**
 ```sh
-systemctl stop mautrix-whatsapp mautrix-telegram
-systemctl stop synapse turnserver etesync etesync-caldav transmission nginx lighttpd filebrowser immo.nnik.dev cronie
+systemctl stop mautrix-whatsapp mautrix-telegram mautrix-signal
+systemctl stop synapse turnserver etesync etesync-caldav transmission nginx lighttpd filebrowser immo.nnik.dev cronie      # nginx takes minutes and ends 'failed (timeout)': harmless
+systemctl stop nfs-server nfs-mountd nfsdcld nfs-idmapd
 docker stop gitea paperless-webserver-1 paperless-broker-1 seafile seadoc seafile-memcached homeassistant vaultwarden portainer bt-web bt-sync-server elabftw mysql
 docker ps --format '{{.Names}}'          # expect: only gitea-db-1, paperless-db-1, seafile-mysql
 systemctl list-units --type=service --state=running --no-legend    # expect: postgresql, pihole-FTL, sshd, NetworkManager, base units
@@ -158,7 +160,7 @@ sops -d --output-type json secrets/optiplex/restic.yaml \
   | ssh optiplex 'sudo install -m 0600 /dev/stdin /root/restic-gate.env'
 ssh optiplex 'sudo head -1 /root/restic-gate.env'
 ```
-expect: `RESTIC_REPOSITORY=s3:https://s3.fr-par.scw.cloud/nnik-optiplex-restic`
+expect: `RESTIC_REPOSITORY=s3:s3.fr-par.scw.cloud/nnik-optiplex-restic` (no `https://`; equivalent)
 
 **5.2, 5.3, 5.4, 5.5** Arch: final gate run (DB servers still up), counts, stop DB servers, delta sync.
 ```sh
@@ -170,7 +172,7 @@ docker stop $(docker ps -q); systemctl stop postgresql
 sudo machines/optiplex/cutover/sync-state.sh --final 2>&1 | tee /mnt/tbssd/cutover/sync-state-final.log
 sudo machines/optiplex/cutover/sync-state.sh --final --dry-run 2>&1 | grep -E 'regular files transferred|deleted files|deleting'
 ```
-expect: `mode: final` in the dump `MANIFEST`; both snapshot IDs and `<DUMPDIR>` = `/mnt/tbssd/arch-gate/<STAMP>/dumps/<TS>` noted; the last command shows 0 transfers, no `deleting`.
+expect: `mode: final` in the dump `MANIFEST`; both snapshot IDs and `<DUMPDIR>` = `/mnt/tbssd/arch-gate/<STAMP>/dumps/<TS>` noted; the last command shows 0 transfers, no `deleting`. The first nightly Backup prunes the final `arch-gate` snapshots of the same day (one snapshot per day is kept): if the final gate snapshot must survive, tag it now (`restic tag --set keep <id>` plus `--keep-tag keep`) or copy it elsewhere (runbook 5.2).
 
 **5.8, 5.9** Arch: `systemctl stop pihole-FTL`, then `systemctl list-units --type=service --state=running --no-legend; docker ps; sync` (expect: base units only, no containers).
 
@@ -212,7 +214,7 @@ expect: exit 0.
 
 **8.1** `inst 'sync; systemctl poweroff'`. **Human: when the box is off, pull the stick, power on.** (BIOS boots the stick or nothing: power off, stick out, F12, "Linux Boot Manager" of the NVMe.)
 ```sh
-nc -z $OPTI 2222 && echo initrd-up       # expect: initrd-up
+timeout 5 bash -c "echo > /dev/tcp/$OPTI/2222" && echo initrd-up       # expect: initrd-up (no nc on the PC)
 ```
 
 **9.1, 9.2** PC then NixOS: unlock and check restoreMode.
@@ -230,7 +232,7 @@ expect: `.20`, `::20`, `fd65:c1a5:7d2b::20`; smartd active; no Kept service runn
 scp machines/optiplex/cutover/expected-counts.sh optiplex:/tmp/
 ssh optiplex 'sudo du -sh /state/*; sudo bash /tmp/expected-counts.sh capture --host nixos --skip-db --out /tmp/counts-files.txt; sudo bash /tmp/expected-counts.sh diff --common /mnt/tbssd/cutover/expected-arch.txt /tmp/counts-files.txt'
 ```
-expect: equal except `files.gitea_repositories`.
+expect: equal except `files.gitea_repositories`. (The script was fixed after the first run; an old copy needs `LC_ALL=C` in front of `bash`.)
 
 **10.2 to 10.5** NixOS: restore.
 ```sh
@@ -243,21 +245,23 @@ ssh optiplex 'sudo bash /tmp/expected-counts.sh capture --host nixos --out /tmp/
 expect: every database checked; the last diff says all values equal. **STOP** on any difference or failed database (`optiplex-db-restore --reset <db>`, then `optiplex-db-restore <DUMPDIR> --only <db>`).
 **10.7** edit the dashboard: `ssh -t optiplex 'sudoedit /state/www/opti.plex/index.html'` (Portainer and Pi-hole out, `http://healthchecks.opti.plex` in).
 
-**11.1** **Human, Porkbun: delete the `*.nnik.dev` CNAME now** (not DuckDNS).
+**11.1** **Human, Porkbun: delete all three now: ALIAS `nnik.dev`, ALIAS `www.nnik.dev`, CNAME `*`** (not DuckDNS; the updater cannot create A/AAAA while any exists).
 ```sh
 dig +short CNAME foo.nnik.dev @fortaleza.ns.porkbun.com      # expect: nothing
+dig +short A nnik.dev @fortaleza.ns.porkbun.com              # expect: nothing
 ```
 
 **STOP (point of no return, 11.2):** the human acknowledges that a rollback now loses what the new system writes.
 
 **11.2, 11.3** PC: deploy, then watch.
 ```sh
-nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+# exit 4 ('failed (status 4)') is fine if only healthchecks-lan-probes, healthchecks-units-ok (and ddns-porkbun before 11.1) are red; check readlink /run/current-system
 ssh optiplex 'journalctl -fu matrix-synapse'      # also: gitea, podman-seafile, paperless-scheduler, mautrix-whatsapp, mautrix-telegram
-ssh optiplex 'curl -s http://127.0.0.1:8008/_matrix/key/v2/server | jq -r ".verify_keys | keys[]"'      # expect: the key ID of 4.5
+ssh optiplex 'curl -s http://127.0.0.1:8008/_matrix/key/v2/server' | jq -r '.verify_keys | keys[]'      # expect: the key ID of 4.5 (jq on the PC)
 ssh optiplex 'curl -fsS http://127.0.0.1:25577/api2/ping/'                                                  # expect: "pong"
 ssh optiplex 'journalctl -u vaultwarden | grep -i "Private key"'                                            # expect: nothing
-ssh optiplex 'transmission-remote 127.0.0.1:25559 -l | tail -2'                                             # expect: 97 torrents
+ssh optiplex 'transmission-remote 127.0.0.1:25559 -l | tail -2'                                             # expect: as many as expected-arch.txt (97 here, 96 in the count file on the day)
 ```
 
 **11.4** **Human:** the healthchecks first user.
@@ -275,7 +279,9 @@ nix path-info .#nixosConfigurations.optiplex.config.system.build.toplevel       
 ssh optiplex 'sudo optiplex-gitea doctor check --all'
 ssh optiplex 'sudo grep -A4 "^\[actions\]" /state/gitea/custom/conf/app.ini'               # expect: RUN_RETENTION_DAYS = 0
 ```
-**Human:** run the `cleanup_packages` cron once (Gitea UI). expect: a production Let's Encrypt certificate; four updater records; `--failed` empty.
+**Human:** run the `cleanup_packages` cron once (Gitea UI). expect: a production Let's Encrypt certificate (already issued at the first boot in restoreMode); four updater records (after 11.1: `sudo systemctl start ddns-porkbun` creates them); `--failed` empty; `doctor`'s `Action entries without existing user` warning is harmless.
+
+**12 (right after the records exist, not after verification)** **Human, FritzBox:** the rebind protection answers empty for every `*.nnik.dev` to LAN clients once the AAAA exist. Set the local DNS / DHCP DNS server to `192.168.178.20` (blocky) and the DNSv6 server to `fd65:c1a5:7d2b::20`, or add `nnik.dev` as a host name exception (Network Settings, Additional Settings, DNS rebind protection).
 
 **12.1, 12.2** **Human, FritzBox:** IPv6 shares to `::20` (80, 443, 8448, 51413, 3478, 49152-49252 UDP); **disable (not delete) the DynDNS**. **12.3**
 ```sh
@@ -303,13 +309,14 @@ expect: both succeed; new bucket objects show "One Zone".
 ssh optiplex 'sudo optiplex-gitea actions generate-runner-token --scope aitopia'     # trusted_token
 ssh optiplex 'sudo optiplex-gitea actions generate-runner-token'                     # untrusted_token
 # PC: build secrets/optiplex/gitea-runners.yaml from stdin (ticket 33's recipe), git add + commit, then:
-nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
 ```
-**16.3** **Human, FritzBox:** DHCP DNS back to `192.168.178.20`; DNSv6 server `fd65:c1a5:7d2b::20`. **16.4** credentials and the registry token (Gitea UI). **16.5** D&D import (restic excludes first). **16.6** `/movies` off the Shield. **16.9** phone: ntfy app and probes, un-pause them.
+Then the ghost runner rows 1 to 17 (the Gitea UI of this version offers no delete for them, they sit at instance, repository and organisation scope): soft-delete them in the database exactly as Gitea does, in one transaction: `sudo -u postgres psql -d gitea -c "update action_runner set deleted = extract(epoch from now())::bigint where id between 1 and 17 and deleted is null"` (only the ids of rows that are offline; the new runners have higher ids; undo: `set deleted = null`; the historical `action_task` rows keep their runner ids).
+**16.3** **Human, FritzBox:** re-check DHCP DNS `192.168.178.20` and DNSv6 server `fd65:c1a5:7d2b::20` (already done at 12). **16.4** credentials and the registry token (Gitea UI). **16.5** D&D import (restic excludes first). **16.6** `/movies` off the Shield. **16.9** phone: ntfy app and probes, un-pause them.
 
 **16.8** next morning, PC: the first nightly Backup, then shred the tmpfs copies (keep `$HK`).
 ```sh
-# restic snapshots and restic ls latest | grep -E 'ssh_host_(ed25519|rsa)_key|secrets/initrd' (runbook 16.8), for the bucket and /mnt/tbssd/restic-local; expect: a NixOS snapshot in both, host keys and initrd key listed
+# restic snapshots and restic ls latest | grep -E 'ssh_host_(ed25519|rsa)_key|secrets/initrd' (runbook 16.8), for the bucket and /mnt/tbssd/restic-local; expect: a NixOS snapshot in both, host keys and initrd key listed (the first nightly prunes the same-day arch-gate snapshots unless tagged or copied, runbook 5.2)
 shred -u $X/secret.key $X/extra/etc/ssh/ssh_host_*_key $X/extra/etc/secrets/initrd/ssh_host_ed25519_key; rm -rf "$X"
 ```
 
@@ -322,7 +329,7 @@ inst 'rollback-image status'                                      # mounts /data
 ssh -t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI 'rollback-image restore'     # type the device path; expect: sha256 equals the image
 ssh root@$OPTI 'TRRNT=/data/trrnt STATE_TR=/data/state/transmission SAVE=/data/cutover/trrnt-watch.orig bash -s -- back' < machines/optiplex/services/transmission/restore.sh
 ```
-**Human:** Porkbun: delete the updater's four records (A and AAAA, apex and `*`), apex A back to the noted value, **then** re-create the `*` CNAME to `nnik.duckdns.org`. FritzBox: re-enable the DynDNS, IPv6 shares back to Arch's old interface ID, DHCP DNS back to `192.168.178.20`, undo the DNSv6 announcement. Then `inst 'sync; systemctl poweroff'`, **pull the stick, power on** (F12, NVMe if needed).
+**Human:** Porkbun: delete the updater's four records (A and AAAA, apex and `*`), **then** re-create the three old ones, all to `nnik.duckdns.org`, TTL 600: ALIAS `nnik.dev`, ALIAS `www.nnik.dev`, CNAME `*`. FritzBox: re-enable the DynDNS, IPv6 shares back to Arch's old interface ID, DHCP DNS back to `192.168.178.20`, undo the DNSv6 announcement (and the rebind exception, if added). Then `inst 'sync; systemctl poweroff'`, **pull the stick, power on** (F12, NVMe if needed).
 ```sh
 # Arch, root shell: start what does not start by itself (list in /mnt/tbssd/cutover/arch-running.txt; Seafile containers have restart=no)
 docker start <each container of arch-running.txt>

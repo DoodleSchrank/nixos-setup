@@ -39,7 +39,7 @@ NIXOS_ANYWHERE=github:nix-community/nixos-anywhere/58132e1d1f813b845382a2aeca420
 OPTI=192.168.178.20
 ```
 
-`nixos-rebuild` on the PC (Arch) is `nix run nixpkgs#nixos-rebuild --`. The Optiplex deploys are built on the PC (`--build-host localhost`), because Paperless and the etesync overlay are not in the binary cache.
+`nixos-rebuild` on the PC (Arch) is `nix run nixpkgs#nixos-rebuild --`. The Optiplex deploys are built on the PC (`--build-host localhost`), because Paperless and the etesync overlay are not in the binary cache (the deploy command needs `NIX_SSHOPTS`: step 11.2). `nc` is not installed on the PC (step 8.1 uses `/dev/tcp`); the Optiplex has no `jq` and no `dig`, so JSON and DNS checks run from the PC (or use `curl ... | grep -o` on the box).
 
 ### Rules that hold for the whole window
 
@@ -107,7 +107,7 @@ Do these early; none of them hurts Arch.
 
 ### 2.2 Porkbun: look at the TTLs and record the records
 - **Who / where / time:** human, Porkbun UI, 10 min.
-- **Do:** the earlier plan wanted 300 s TTLs; Porkbun's minimum is 600 s, so that is void. Checked 2026-11-14 (authoritative `fortaleza.ns.porkbun.com`): the `*` CNAME (to `nnik.duckdns.org`) has TTL 300 s, the apex A about 60 s, and the apex has **no AAAA** (the clean starting state): nothing to lower. **Write the current records down again** (apex A value, `*` CNAME target, their TTLs) into the log on the day: the rollback restores exactly these. (The updater later writes TTL 600.)
+- **Do:** the earlier plan wanted 300 s TTLs; Porkbun's minimum is 600 s, so that is void. The zone has **no plain apex A record** (found on the day, 2026-11-15): it has the ALIAS records `nnik.dev` and `www.nnik.dev` (both to `nnik.duckdns.org`, TTL 600) and the `*` CNAME (to `nnik.duckdns.org`), and no AAAA (the clean starting state): nothing to lower. **Write the current records down again** (the two ALIAS records, the `*` CNAME, targets and TTLs) into the log on the day: the rollback restores exactly these (step 15.5). (The updater later writes TTL 600.)
 - **Check:** the list is in the log.
 
 ### 2.3 FritzBox shares for coturn and 3478/51413
@@ -310,12 +310,14 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
 3. **Delete the webhook to `192.168.178.21:9100`.** Human, Gitea UI (Site Administration, Webhooks, and the webhooks of the four repositories; ticket 24 does not say which one holds it). Check: `docker exec gitea-db-1 psql -U gitea -d gitea -At -c 'select count(*) from webhook'` prints 0.
 4. **Delete the four Actions secrets of `AItopia/battle-tracker`** (`REGISTRY_USER`, `REGISTRY_TOKEN`, `BT_SYNC_BASE_URL`, `PORTAINER_WEBHOOK_URL`). Human, repository Settings, Actions, Secrets. Check: the secrets page is empty.
 5. **Delete the two registry packages** `battle-tracker-web` (125 versions) and `bt-sync-server` (19), both owned by the organisation `AItopia`; keep `flutter-ci` and `flutter-android-ci`. Human, `AItopia`, Packages, each package, Settings, delete. Then run the package-cleanup cron once (Site Administration, Monitoring, Cron Tasks, `cleanup_packages`). Check: both are gone from the package list; `du -sh /mnt/tbssd/docker/volumes/gitea_data/_data/gitea/packages` is smaller than before (about 2.6 GB less; note the numbers in the log).
-6. **Prune the 31 accounts: plain delete, never purge.** Everybody except `Yannik`; the four `*-bot` accounts included. A purge would also delete their 185 issues, 549 pull requests, 6309 comments and 891 reviews. **Not tested on 1.26.4 so far** (ticket 48 did not record the check; Appendix B question 4), so this step verifies after the first account and stops if anything drops. Human creates a short-lived admin token in the UI (Settings, Applications; name it `cutover-prune`), the agent reads it without echo:
+6. **Prune the 31 accounts: plain delete, never purge.** Everybody except `Yannik`; the four `*-bot` accounts included. A purge would also delete their 185 issues, 549 pull requests, 6309 comments and 891 reviews. **Not tested on 1.26.4 so far** (ticket 48 did not record the check; Appendix B question 4), so this step verifies after the first account and stops if anything drops. Human creates a short-lived admin token in the UI (Settings, Applications; name it `cutover-prune`) with the scopes **`write:admin` and `write:organization`** (a token without a valid scope answers 401) and types it **himself** into the hidden `read -rs` prompt on Arch: the token never goes into the chat, a file or the shell history.
    ```sh
    read -rs GITEA_ADMIN_TOKEN; export GITEA_ADMIN_TOKEN        # on Arch, never into a file or the shell history
    API=http://127.0.0.1:25579/api/v1
    curl -fsS -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users?limit=50" | jq -r '.[].login' | grep -vx Yannik | sort > /mnt/tbssd/cutover/gitea-accounts.txt
    wc -l < /mnt/tbssd/cutover/gitea-accounts.txt                  # 31
+   # 8 of the 31 are members of the organisation AItopia (team `slaves`); Gitea answers 422 Unprocessable Entity to the delete while a user is an org member
+   for u in bt-design bt-implement bt-plan bt-registry bt-review bt-spec bt-test bt-verify; do curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/orgs/AItopia/members/$u"; done
    first=$(head -1 /mnt/tbssd/cutover/gitea-accounts.txt)
    curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users/$first"      # no purge parameter
    ```
@@ -324,11 +326,11 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
    docker exec -i gitea-db-1 psql -U gitea -d gitea -At < /mnt/tbssd/cutover/gitea-counts.sql > /mnt/tbssd/cutover/gitea-counts-after-first.txt
    diff /mnt/tbssd/cutover/gitea-counts-before.txt /mnt/tbssd/cutover/gitea-counts-after-first.txt && echo SAME
    ```
-   They must be **identical**, and a pull request written by `bt-review` still renders in the browser. If the counts drop: stop, restore `gitea-pre-prune.dump` into the container's database (`docker exec -i gitea-db-1 pg_restore -U gitea -d gitea --clean --if-exists < ...` after stopping Gitea), and decide again with the human. If they are identical:
+   They must be **identical** (removing the org memberships changes no count), and a pull request written by `bt-review` still renders in the browser. If the counts drop: stop, restore `gitea-pre-prune.dump` into the container's database (`docker exec -i gitea-db-1 pg_restore -U gitea -d gitea --clean --if-exists < ...` after stopping Gitea), and decide again with the human. If they are identical:
    ```sh
    tail -n +2 /mnt/tbssd/cutover/gitea-accounts.txt | while read -r u; do curl -fsS -X DELETE -H "Authorization: token $GITEA_ADMIN_TOKEN" "$API/admin/users/$u"; done
    ```
-   Then the human deletes the `cutover-prune` token in the UI, and `unset GITEA_ADMIN_TOKEN`.
+   If the loop prints a failure for some account (the `422` above: an org member that was missed), remove the membership and run the loop again (a second pass; the accounts that are already gone fail harmlessly). Then the human deletes the `cutover-prune` token in the UI, and `unset GITEA_ADMIN_TOKEN`.
    Check: `curl ... "$API/admin/users?limit=50" | jq -r '.[].login'` lists only `Yannik`; the counts file after equals the one before; the 3 OAuth applications still exist (human, UI).
 7. **Merge the battle-tracker "drop the Docker deployment" change on the live Gitea** (`PENDING 39B`: the change is prepared by ticket 39; the human merges it here). It must be in before the final dump. Check: `deploy-web.yml`, `sync-server-image.yml` and `deploy/` are gone from `main`.
 
@@ -336,11 +338,12 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
 - **Who / where / time:** agent, Arch, 5 min.
 - **Do:** stop the bridges first, then Synapse (never both bridge sets at once), then everything else. The DB servers (`postgresql.service`, the containers `gitea-db-1`, `paperless-db-1`, `seafile-mysql`) and Pi-hole **stay up**; `cronie` stays stopped so no scheduled job (the cron restarts of Synapse and the bridges every 4 to 6 hours) starts a write.
   ```sh
-  systemctl stop mautrix-whatsapp mautrix-telegram
+  systemctl stop mautrix-whatsapp mautrix-telegram mautrix-signal
   systemctl stop synapse turnserver etesync etesync-caldav transmission nginx lighttpd filebrowser immo.nnik.dev cronie
+  systemctl stop nfs-server nfs-mountd nfsdcld nfs-idmapd
   docker stop gitea paperless-webserver-1 paperless-broker-1 seafile seadoc seafile-memcached homeassistant vaultwarden portainer bt-web bt-sync-server elabftw mysql
   ```
-  (`mysql` is elabFTW's container; elabFTW is dropped.) Anything else the check below lists, except the base units, is stopped now, not after the dump.
+  (`mysql` is elabFTW's container; elabFTW is dropped. `mautrix-signal` is the retired Signal bridge, still running on Arch. The NFS units serve `/movies` and `/mnt/tbssd/trrnt` read-only, no clients: they must be off before the final gate too.) `systemctl stop nginx` takes minutes and ends `failed (timeout)`: open Matrix long-poll connections hold it, systemd kills it; harmless. Anything else the check below lists, except the base units, is stopped now, not after the dump.
 - **Check:** `docker ps --format '{{.Names}}'` shows only `gitea-db-1`, `paperless-db-1`, `seafile-mysql`; `systemctl list-units --type=service --state=running --no-legend` shows only `postgresql`, `pihole-FTL`, `sshd`, `NetworkManager` and the base units. **Record the time: this is when Arch stops; the rollback time box ends 24 h later.**
 
 ---
@@ -357,10 +360,10 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
     | jq -r '"RESTIC_REPOSITORY=s3:\(.s3_endpoint)/\(.s3_bucket)\nRESTIC_PASSWORD=\(.repository_password)\nAWS_ACCESS_KEY_ID=\(.s3_access_key_id)\nAWS_SECRET_ACCESS_KEY=\(.s3_secret_access_key)\nAWS_DEFAULT_REGION=\(.s3_region)"' \
     | ssh optiplex 'sudo install -m 0600 /dev/stdin /root/restic-gate.env'
   ```
-- **Check:** `ssh optiplex 'sudo head -1 /root/restic-gate.env'` (the file is on Arch) reads `RESTIC_REPOSITORY=s3:https://s3.fr-par.scw.cloud/nnik-optiplex-restic`.
+- **Check:** `ssh optiplex 'sudo head -1 /root/restic-gate.env'` (the file is on Arch) reads `RESTIC_REPOSITORY=s3:s3.fr-par.scw.cloud/nnik-optiplex-restic` (no `https://`: restic uses https by default, so it is equivalent).
 
 ### 5.2 The final gate run
-- **Who / where / time:** agent, Arch, **dumps about 5 min** (the Synapse dump alone took 136 s) plus the incremental restic runs (the bulk was uploaded by earlier runs): plan 10 to 30 min (estimate).
+- **Who / where / time:** agent, Arch, **dumps about 5 min** (the Synapse dump alone took 136 s) plus the incremental restic runs (the bulk was uploaded by earlier runs): **measured 7 min** on the day (08:34:58 to 08:41:49).
 - **Do:**
   ```sh
   cd $REPO_ARCH
@@ -369,19 +372,20 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
   ```
   This runs `arch-db-dumps.sh --final` (it refuses while any consumer runs) into `/mnt/tbssd/arch-gate/<STAMP>/dumps/<TS>/`, takes the `sqlite3 .backup` copies of Vaultwarden, etesync and Home Assistant, then backs up the Arch source paths (as the earlier gate runs did, **not** `/mnt/tbssd/state`) into the local repository first and then into the bucket.
 - **Check:** the script prints both snapshot lists; `grep '^# mode:' /mnt/tbssd/arch-gate/<STAMP>/dumps/<TS>/MANIFEST` says `final`; eight dumps exist and are non-empty; record the **local and the bucket snapshot IDs**, the stage path (`<STAMP>`) and the dump directory path `<DUMPDIR>` = `/mnt/tbssd/arch-gate/<STAMP>/dumps/<TS>` in the log. **That path is what step 10.2 restores** (not `/mnt/tbssd/cutover-dumps/<ts>/`, which the older tickets name: Appendix B, contradiction 2). Storage class of the new bucket objects: "One Zone" (`infra/scaleway/README.md`).
+- **Retention:** the nightly NixOS job (`--keep-daily 7 --keep-weekly 4 --keep-monthly 6 --group-by host`, tags ignored) keeps one snapshot per day, so **the first nightly Backup prunes the final `arch-gate` snapshots of the same day**. The Arch data stays in the Rollback image and on the Data disk. If the final gate snapshot must survive, tag-protect it before the first nightly (`restic tag --set keep <id>`, then `--keep-tag keep` on the job's forget) or copy it to another repository.
 
 ### 5.3 Capture the service-level counts on Arch
 - **Who / where / time:** agent, Arch, 5 min (the file trees are counted; the DB servers must still be up).
 - **Do:** `sudo machines/optiplex/cutover/expected-counts.sh capture --host arch --out /mnt/tbssd/cutover/expected-arch.txt`
-- **Check:** the file lists Synapse events and `max_stream_ordering`, Gitea repositories, users, issues, comments and reviews, Paperless documents, Seafile libraries and share links, every table of the Vaultwarden and etesync SQLite databases (Vaultwarden users 3 and ciphers 288 expected), transmission torrents (97 expected), and the file counts of the copied trees.
+- **Check:** the file lists Synapse events and `max_stream_ordering`, Gitea repositories, users, issues, comments and reviews, Paperless documents, Seafile libraries and share links, every table of the Vaultwarden and etesync SQLite databases (Vaultwarden users 3; ciphers were 288 when this was written and 297 on the day), transmission torrents (97 when written; 96 in the count file and 97 in `transmission-remote -l` on the day), and the file counts of the copied trees. This is live drift: **the values of `expected-arch.txt` are the reference, not the numbers in this runbook.**
 
 ### 5.4 Stop what is left, the DB servers included
 - **Who / where / time:** agent, Arch, 2 min. Pi-hole stays up until 5.8.
-- **Do:** `docker stop $(docker ps -q); systemctl stop postgresql`; then every other unit that `systemctl list-units --type=service --state=running` still lists, except `sshd`, `NetworkManager`, `pihole-FTL` and the base units.
+- **Do:** `docker stop $(docker ps -q); systemctl stop postgresql`; then every other unit that `systemctl list-units --type=service --state=running` still lists, except `sshd`, `NetworkManager`, `pihole-FTL` and the base units (`mautrix-signal` and the NFS units `nfs-server nfs-mountd nfsdcld nfs-idmapd` belong to the 4.8 list; if one still runs, stop it now).
 - **Check:** `docker ps` is empty; `ss -tulpn` lists only sshd (25560), pihole-FTL (53, 123 and its web port) and the base services.
 
 ### 5.5 The delta sync (the downtime rows)
-- **Who / where / time:** agent, Arch, about 10 min (estimate; the downtime rows are small: Vaultwarden 6.7 MB, Home Assistant 65 MB, Paperless about 150 MB, plus whatever changed in the pre-synced trees).
+- **Who / where / time:** agent, Arch, **measured about 1 min** for `--final` (the downtime rows are small: Vaultwarden 6.7 MB, Home Assistant 65 MB, Paperless about 150 MB, plus whatever changed in the pre-synced trees).
 - **Do:**
   ```sh
   cd $REPO_ARCH
@@ -423,7 +427,7 @@ The pruning and the package deletion hit the Data-disk volume, and the Rollback 
 
 A full copy of the Arch System disk, taken from inside the installer while the NVMe is not mounted, so it is consistent. Only the System disk: the Data disk is never imaged.
 
-**Who / where / time:** agent, Installer, **20 to 30 min** (estimate; not measured: the rehearsals imaged a small disk). The ISO has `zstd`, `pv`, `sfdisk` and the `rollback-image` command.
+**Who / where / time:** agent, Installer, **about 41 min, measured on the day** (create 1404 s, 99 GB on disk; verify 1076 s). The ISO has `zstd`, `pv`, `sfdisk` and the `rollback-image` command.
 
 ### 6.1 Look at the disks
 - **Do:**
@@ -474,7 +478,7 @@ A full copy of the Arch System disk, taken from inside the installer while the N
 
 ## 8. Install (nixos-anywhere, `restoreMode`)
 
-**Who / where / time:** agent, PC to Installer, **5 to 15 min** (the PC pushes the whole closure over the LAN: 175 s in the VM rehearsal). After the Rollback image is verified and the Data disk is released. The install is of **`.#optiplex-restore`**, never `.#optiplex`: PostgreSQL and MariaDB run with their roles and empty databases and every Kept service is off. `PENDING 45`: the rehearsal ran the same flags with `--phases disko,install` against a VM that was already an installer, and the pinned nixos-anywhere ref; whether `reboot` belongs in the phase list and whether `--store-paths` is needed are recorded there.
+**Who / where / time:** agent, PC to Installer, **under 4 min, measured on the day** (10:23:38 to 10:27:18; the PC pushes the whole closure over the LAN: 175 s in the VM rehearsal). After the Rollback image is verified and the Data disk is released. The install is of **`.#optiplex-restore`**, never `.#optiplex`: PostgreSQL and MariaDB run with their roles and empty databases and every Kept service is off. `PENDING 45`: the rehearsal ran the same flags with `--phases disko,install` against a VM that was already an installer, and the pinned nixos-anywhere ref; whether `reboot` belongs in the phase list and whether `--store-paths` is needed are recorded there.
 
 - **Do:**
   ```sh
@@ -494,14 +498,14 @@ A full copy of the Arch System disk, taken from inside the installer while the N
 - **Who / where / time:** agent, then **human at the box**, 5 min.
 - **Do:** `inst 'sync; systemctl poweroff'`. When the box is off, **the human pulls the stick**, then powers on. The installed system's boot entry ("Linux Boot Manager", written by the install as the first UEFI entry) boots the NVMe and stops in the initrd waiting for the passphrase.
 - **If the BIOS boots the stick again or finds no system** (the stick still in, or the entry missing): power off, make sure the stick is out, power on and press F12; choose the NVMe's "Linux Boot Manager" entry (or the NVMe by name). Never type a passphrase at the console: the unlock is the script (step 9.1).
-- **Check:** `ping $OPTI` answers within two minutes (the initrd network) and `nc -z $OPTI 2222` succeeds (port 2222 only answers in the initrd).
+- **Check:** `ping $OPTI` answers within two minutes (the initrd network) and `timeout 5 bash -c "echo > /dev/tcp/$OPTI/2222" && echo initrd-up` prints `initrd-up` (port 2222 only answers in the initrd; `nc` is not installed on the PC).
 
 ---
 
 ## 9. First unlock and `restoreMode` checks
 
 ### 9.1 Unlock from the PC
-- **Who / where / time:** agent, PC (human present, LAN only), 2 to 5 min. The unlock is rehearsed in the VM with this very script (exit 0); the first time on the real NIC is now.
+- **Who / where / time:** agent, PC (human present, LAN only), 2 to 5 min (cold reboot plus unlock **measured about 2 min**). The unlock is rehearsed in the VM with this very script (exit 0); the first time on the real NIC is now.
 - **Do:**
   ```sh
   machines/optiplex/unlock-optiplex.sh
@@ -529,7 +533,7 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   - PostgreSQL and MariaDB are active; the databases `matrix-synapse`, `mautrix-whatsapp`, `mautrix-telegram`, `gitea`, `paperless` and `ccnet_db`, `seafile_db`, `seahub_db` exist (empty);
   - **`smartd` is active** (red only in VMs; here it must be green: if not, that is a real finding about the disks);
   - **no Kept service unit is running** (restoreMode keeps the users, the sops secrets and the edge: Caddy, blocky, and the ACME unit);
-  - `dig @$OPTI nnik.dev` answers (blocky). The ACME unit may already have issued the real certificate: watch `journalctl -u acme-order-renew-nnik.dev` (the unit is `acme-order-renew-nnik.dev.service`, not `acme-nnik.dev.service`). Each real issuance counts against Let's Encrypt's 5 duplicate certificates per week.
+  - `dig @$OPTI nnik.dev` answers (blocky). The ACME unit may already have issued the real certificate (it had, on the day: step 11.5): watch `journalctl -u acme-order-renew-nnik.dev` (the unit is `acme-order-renew-nnik.dev.service`, not `acme-nnik.dev.service`). Each real issuance counts against Let's Encrypt's 5 duplicate certificates per week.
 
 ---
 
@@ -545,11 +549,12 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   scp machines/optiplex/cutover/expected-counts.sh optiplex:/tmp/
   ssh optiplex 'sudo du -sh /state/*; sudo bash /tmp/expected-counts.sh capture --host nixos --skip-db --out /tmp/counts-files.txt; sudo bash /tmp/expected-counts.sh diff --common /mnt/tbssd/cutover/expected-arch.txt /tmp/counts-files.txt'
   ```
+  The script was fixed after the first run (it needed `LC_ALL=C` and the NixOS database name `matrix-synapse`): an old copy needs `LC_ALL=C` in front of `bash`.
 - **Check:** the file counts and the SQLite table counts (Vaultwarden, etesync) equal Arch's. **One difference is expected at this point:** `files.gitea_repositories` (restored in 10.3). Sizes: about 25 GB Synapse media, 22 GB Seafile blocks.
 
 ### 10.2 The databases: `optiplex-db-restore`
 - **Do:** `ssh optiplex 'sudo optiplex-db-restore <DUMPDIR>' 2>&1 | tee` into the log (the script has no consumers to stop: none exists in `restoreMode`). `optiplex-db-restore --help` prints its procedure.
-- **Time:** **measured 102 s on the PC for all eight (Synapse 87 s; `seahub_db` 7 s; the rest 0 to 2 s each)**. The Optiplex is slower; the old "15 to 30 min" estimate was wrong by an order of magnitude. Record the real per-database times in the log and in section 18.
+- **Time:** **measured 181 s in total on the Optiplex on the day (Synapse 163 s)**; 102 s on the PC in the rehearsal (Synapse 87 s; `seahub_db` 7 s; the rest 0 to 2 s each). The old "15 to 30 min" estimate was wrong by an order of magnitude. Record the real per-database times in the log.
 - **Check:** exit 0; for each database the script reports MANIFEST ok, objects owned by the service role, row counts equal to `counts/*.tsv`, and `matrix-synapse` is still C/C. A `WARNING` about `whatsapp`'s collation version came with the dump (glibc bump on Arch): known, the restore uses the builtin C.UTF-8. On a failed database: `optiplex-db-restore --reset <db>`, then `optiplex-db-restore <DUMPDIR> --only <db>`.
 
 ### 10.3 Gitea: `optiplex-gitea-restore`
@@ -576,31 +581,31 @@ A full copy of the Arch System disk, taken from inside the installer while the N
 
 ### 10.8 Everything counted again
 - **Do:** `ssh optiplex 'sudo bash /tmp/expected-counts.sh capture --host nixos --out /tmp/counts-full.txt; sudo bash /tmp/expected-counts.sh diff /mnt/tbssd/cutover/expected-arch.txt /tmp/counts-full.txt'`
-- **Check:** **all values equal** (Synapse events and `max_stream_ordering`, Gitea, Paperless, Seafile libraries and share links, Vaultwarden users 3 and ciphers 288, transmission 97, every file tree). Any difference is a no-go for step 11 until explained.
+- **Check:** **all values equal** (Synapse events and `max_stream_ordering`, Gitea, Paperless, Seafile libraries and share links, Vaultwarden users and ciphers, transmission, every file tree; the values of `expected-arch.txt` are the reference, not the numbers in this runbook: step 5.3). Any difference is a no-go for step 11 until explained.
 
 ---
 
 ## 11. Normal deploy (the point after which a rollback loses new data)
 
-### 11.1 Delete the `*.nnik.dev` CNAME at Porkbun, now
+### 11.1 Delete the three DuckDNS records at Porkbun, now
 - **Who / where / time:** human, Porkbun UI, 5 min.
-- **Why this order (decided here; the old text disagreed with itself):** `ddns-porkbun` starts with the first normal deploy, and it never overwrites a CNAME on a name it needs: with the `*` CNAME still present it edits the apex A, creates the apex AAAA and then fails on `*` every 5 minutes (a push to ntfy each time). Arch is stopped, so nothing is lost by deleting it now, and the rollback restores it (step 15.5). Do **not** delete DuckDNS.
-- **Do:** delete the `*` CNAME (to `nnik.duckdns.org`) of `nnik.dev` in the Porkbun UI. Leave the apex A.
-- **Check:** `dig +short CNAME foo.nnik.dev @fortaleza.ns.porkbun.com` (the authoritative server, no cache) prints nothing.
+- **Why this order (decided here; the old text disagreed with itself):** `ddns-porkbun` starts with the first normal deploy, and it cannot create an A or AAAA record on a name that has a CNAME or ALIAS. The zone has three such records (step 2.2): the ALIAS `nnik.dev`, the ALIAS `www.nnik.dev` and the `*` CNAME, all to `nnik.duckdns.org`. While any of them exists the updater fails: `*.nnik.dev is a CNAME; delete it first`, or HTTP 400 `create A nnik.dev failed` for the apex (a push to ntfy every 5 minutes). Arch is stopped, so nothing is lost by deleting them now, and the rollback restores them (step 15.5). Do **not** delete DuckDNS.
+- **Do:** delete the ALIAS `nnik.dev`, the ALIAS `www.nnik.dev` and the `*` CNAME of `nnik.dev` in the Porkbun UI, **before the first updater run**. The updater then creates A and AAAA for `nnik.dev` and `*.nnik.dev` (`www` is covered by `*`): step 11.5.
+- **Check:** `dig +short CNAME foo.nnik.dev @fortaleza.ns.porkbun.com` (the authoritative server, no cache) and `dig +short A nnik.dev @fortaleza.ns.porkbun.com` print nothing.
 
 ### 11.2 Deploy
-- **Who / where / time:** agent, PC to NixOS Optiplex, **15 to 30 min** (estimate; everything is already built, so most of it is copying the closure). Human acknowledges: **from here a rollback loses what is written to the new system.**
+- **Who / where / time:** agent, PC to NixOS Optiplex, **about 4 min, measured on the day** (everything is already built, so most of it is copying the closure). Human acknowledges: **from here a rollback loses what is written to the new system.**
 - **Do:**
   ```sh
-  nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+  NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
   ```
-  (a plain `nixos-rebuild --flake .#optiplex --target-host optiplex` would build on the box, and Paperless and the etesync overlay are not in the binary cache.)
-- **Check:** exit 0; the PC's toplevel path equals the one noted in 3.1 (step 11.6).
+  (a plain `nixos-rebuild --flake .#optiplex --target-host optiplex` would build on the box, and Paperless and the etesync overlay are not in the binary cache.) `--build-host localhost` ssh-es to the PC itself: on a PC whose `known_hosts` lacks `localhost` it fails at once with `Host key verification failed` (nothing is changed on the box), hence the `NIX_SSHOPTS`.
+- **Check:** the PC's toplevel path equals the one noted in 3.1 (step 11.6). Exit 0, **or exit 4** with `switching to system configuration ... failed (status 4)`: some units failed to start, but the system is switched (`ssh optiplex readlink /run/current-system`). Right after the first deploy exactly `healthchecks-lan-probes` and `healthchecks-units-ok` (no first user yet: step 11.4) are expected red, and `ddns-porkbun` until the Porkbun records are deleted (step 11.1). Anything else is a finding.
 
 ### 11.3 Watch the first starts
 - **Who / where / time:** agent, NixOS Optiplex, 10 to 15 min. In the rehearsal everything was up within 25 s of the deploy; the Optiplex is slower and its migrations run on real data for the first time on this hardware.
 - **Do and check, one line per service** (`journalctl -fu <unit>` in a second terminal while the deploy runs):
-  - **Synapse** (`matrix-synapse`): schema migration 1.156 to 1.164 (rehearsal: first start 8.9 s; the unit allows 30 min). Check: `curl -s http://127.0.0.1:8008/_matrix/key/v2/server | jq -r '.verify_keys | keys[]'` prints the **signing key ID noted in step 4.5**.
+  - **Synapse** (`matrix-synapse`): schema migration 1.156 to 1.164 (rehearsal: first start 8.9 s; the unit allows 30 min). Check (no `jq` on the box): `ssh optiplex 'curl -s http://127.0.0.1:8008/_matrix/key/v2/server' | jq -r '.verify_keys | keys[]'` prints the **signing key ID noted in step 4.5**.
   - **Bridges** (`mautrix-whatsapp`, `mautrix-telegram`): start on the restored databases (main DB upgrade, crypto DB 21 to 22 in the rehearsal). **Watch item:** the rehearsal logged `Failed to share keys: One time key ... already exists` on every start; the dumps there were taken with the services running, so with the stopped-service final dump it should not occur. Look for it in the journals right away; if it appears, note it and carry on (not a rollback trigger).
   - **Gitea:** `gitea migrate` 1.26.4 to 28.3.0 (rehearsal: 27 migrations, about 1 s; the unit allows 15 min).
   - **Seafile** (`podman-seafile`): the image runs the 12 to 13 upgrade by itself. Check: `curl -fsS http://127.0.0.1:25577/api2/ping/` prints `"pong"`, `podman logs seafile` has no `Traceback`.
@@ -608,7 +613,7 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   - **Home Assistant:** starts on the real `.storage` (2026.5.1 to 2026.10.4 in the rehearsal); its errors about unreachable devices are network, not data.
   - **Vaultwarden:** `curl -fsS https://pw.nnik.dev/alive` after DNS (step 12), or `curl -fsS --resolve pw.nnik.dev:443:127.0.0.1 https://pw.nnik.dev/alive` from the box; `journalctl -u vaultwarden | grep -i 'Private key'` must print **nothing** (a "created" line means the sops key was not used).
   - **etesync** (`etebase-server`, `etesync-dav`): `migrate` and `collectstatic` run in the pre-start.
-  - **transmission:** active; `transmission-remote 127.0.0.1:25559 -l` lists 97 torrents, none "Verifying".
+  - **transmission:** active; `transmission-remote 127.0.0.1:25559 -l` lists as many torrents as `expected-arch.txt` has (97 in `-l` on the day, 96 in the count file; step 5.3), none "Verifying".
 
 ### 11.4 healthchecks: the first user (a deliberate step)
 - **Who / where / time:** human (the password goes to Vaultwarden), NixOS Optiplex, 3 min. Until this runs, the units `healthchecks-lan-probes` and `healthchecks-units-ok` are **red and page ntfy** through `notify-failure@` (HTTP 404, there is no project yet).
@@ -622,8 +627,8 @@ A full copy of the Arch System disk, taken from inside the installer while the N
 
 ### 11.5 ACME and the DDNS updater
 - **Who / where / time:** agent, NixOS Optiplex, 5 min.
-- **Do:** `ssh optiplex 'journalctl -u acme-order-renew-nnik.dev --no-pager | tail -20; sudo ddns-porkbun --dry-run; journalctl -u ddns-porkbun --no-pager | tail'` (the ACME unit is `acme-order-renew-nnik.dev.service`, not `acme-nnik.dev.service`; the updater timer fires at once after the deploy, so the dry run may say "nothing to change").
-- **Check:** the real Let's Encrypt (production) certificate for `nnik.dev` and `*.nnik.dev` is issued; the Porkbun zone has four records, A and AAAA for the apex and for `*` (TTL 600), and no CNAME. The updater fails loudly with no AAAA if the host has no global `...::20` address: then check `ip -6 addr` and the router's IPv6.
+- **Do:** `ssh optiplex 'journalctl -u acme-order-renew-nnik.dev --no-pager | tail -20; sudo ddns-porkbun --dry-run; journalctl -u ddns-porkbun --no-pager | tail'` (the ACME unit is `acme-order-renew-nnik.dev.service`, not `acme-nnik.dev.service`; the updater timer fires at once after the deploy, so the dry run may say "nothing to change"). With the three records of 11.1 gone, `ssh optiplex 'sudo systemctl start ddns-porkbun'` creates the A and AAAA records now (if it ran earlier and failed, this is the rerun). Check with `dig +short A nnik.dev @fortaleza.ns.porkbun.com` from the PC.
+- **Check:** the real Let's Encrypt (production) certificate for `nnik.dev` and `*.nnik.dev` is issued (on the day it was already issued during the first boot in `restoreMode`: issuer YE2, valid to 2027-02-13, so this can be checked right after the unlock); the Porkbun zone has four records, A and AAAA for the apex and for `*` (TTL 600), and no CNAME. The updater fails loudly with no AAAA if the host has no global `...::20` address: then check `ip -6 addr` and the router's IPv6. **As soon as the records exist, do the FritzBox DNS fix at the top of step 12** (not after verification): the LAN cannot reach the sites until then.
 
 ### 11.6 Systems state
 - **Do:** `ssh optiplex 'readlink /run/current-system; systemctl --failed --no-legend'`
@@ -637,13 +642,17 @@ A full copy of the Arch System disk, taken from inside the installer while the N
   ssh optiplex 'sudo grep -A4 "^\[actions\]" /state/gitea/custom/conf/app.ini'          # RUN_RETENTION_DAYS = 0
   ```
   The human runs the `cleanup_packages` cron once in the UI (Site Administration, Monitoring, Cron Tasks).
-- **Check:** `doctor` ran 13 checks without errors (a warning for an LFS object without a row is harmless); `RUN_RETENTION_DAYS = 0`; the cron ran.
+- **Check:** `doctor` ran 13 checks without errors (a warning for an LFS object without a row is harmless; so is `Found 12212 Action entries without existing user` after the prune: activity-feed rows of the deleted accounts); `RUN_RETENTION_DAYS = 0`; the cron ran.
 
 ---
 
-## 12. DNS and FritzBox (after the LAN checks of step 13.1 to 13.3 pass)
+## 12. DNS and FritzBox (the DNS part right after 11.5; the shares after the LAN checks of step 13.1 to 13.3)
 
-The FritzBox keeps handing out **itself** as DNS until the verification has passed (step 16.3). Public names now come from Porkbun (11.5); LAN names are checked by address.
+The FritzBox hands out **itself** as DNS during the window (step 4.2), but **not past the moment the updater has created the AAAA records (step 11.5): do the fix below right then, before 12.1 and not after verification.** The AAAA `2a02:8108:3184:3600::20` is inside the LAN's own prefix, so the FritzBox's DNS rebind protection returns EMPTY answers (NOERROR, 0 answers) for every `*.nnik.dev` name to LAN clients that use it as DNS. Symptom: the sites are unreachable from the LAN and fine from mobile data. The fix, one of:
+- set the FritzBox "local DNS server" / the DHCP DNS server to `192.168.178.20` (blocky) and the DNSv6 server to `fd65:c1a5:7d2b::20` (Home Network, Network, Network Settings); on the day the FritzBox was set to forward LAN DNS to blocky and it worked; or
+- add `nnik.dev` as a host name exception under Home Network, Network, Network Settings, Additional Settings, DNS rebind protection.
+
+Public names now come from Porkbun (11.5); LAN names are checked by address until this is done. Step 16.3 only re-checks it.
 
 ### 12.1 Re-point the FritzBox IPv6 shares at `::20`
 - **Who / where / time:** human, FritzBox UI, 10 min.
@@ -707,6 +716,7 @@ The FritzBox keeps handing out **itself** as DNS until the verification has pass
 
 ### 13.8 battle-tracker (`PENDING 39B`)
 - `https://pnp.nnik.dev/` loads and Settings, Sync shows that sync is configured; `https://pnp-backend.nnik.dev/health` returns 200; `battle-tracker-deploy.service` runs on its hourly timer (`systemctl list-timers battle-tracker-deploy.timer`; `systemctl start battle-tracker-deploy` once, and check that it does not fail).
+- Not Cutover related, seen on the day: the pipeline check of PR #573 failed on a timing assertion (`test_actual_threaded_broker_slow_dns_cannot_start_late_post`, 0.27 s vs 0.2 s) and `Build flutter-android-ci image` had also failed on `main` earlier: flaky or pre-existing.
 
 ### 13.9 transmission, NFS, static sites
 - transmission: web UI on `http://transmission.opti.plex` (LAN); the torrents resumed with **no re-verify**; port **51413 connectable on IPv4 and IPv6** (an outside port test); a new download is group-writable: `stat -c '%U:%G %a' /trrnt/<newfile>` is `transmission:transmission 664`. Re-login yannik once so the new `transmission` group applies.
@@ -714,7 +724,7 @@ The FritzBox keeps handing out **itself** as DNS until the verification has pass
 - Static sites `ya`, `koke`, `immo` and the `opti.plex` dashboard load.
 
 ### 13.10 Backup and monitoring
-- A manual run of the NixOS Backup into the same repository: `ssh optiplex 'sudo systemctl start restic-backups-optiplex.service'` (bucket) and `restic-backups-optiplex-local.service` (the local repository, which the gate created); both succeed. The new bucket objects show **"One Zone"** (`infra/scaleway/README.md`, storage-class check).
+- A manual run of the NixOS Backup into the same repository: `ssh optiplex 'sudo systemctl start restic-backups-optiplex.service'` (bucket) and `restic-backups-optiplex-local.service` (the local repository, which the gate created); both succeed (first runs on the day: bucket 10.6 min, local 13.3 min). The new bucket objects show **"One Zone"** (`infra/scaleway/README.md`, storage-class check).
 - healthchecks: pings arrive (`backup-nightly` after the manual run, `units-ok`, `lan-*`); the two LAN probes are green.
 - The phone's probe app watches the public sites (step 16.9).
 
@@ -754,7 +764,7 @@ Going ahead (a clean step 13 and the human's "verified") **starts the Rollback i
 
 ## 15. Rollback steps
 
-**The rollback needs the stick, a monitor and a keyboard at the Optiplex, plainly: the same installer ISO that installed the system restores Arch (the NixOS system has no tool to overwrite its own System disk, and if it does not boot at all there is nothing else).** Keep the stick in the box until the Rollback image's lifetime is over (ticket 44). **Who / where / time:** the agent runs the commands (PC and Installer), the human does Porkbun, the FritzBox and the physical boot; 60 to 120 min (the image write is 20 to 30 min of it, estimate). Log the cause first. **A rollback does not resolve ticket 43**: its findings go into the service tickets or the harness, and a new Cutover date follows.
+**The rollback needs the stick, a monitor and a keyboard at the Optiplex, plainly: the same installer ISO that installed the system restores Arch (the NixOS system has no tool to overwrite its own System disk, and if it does not boot at all there is nothing else).** Keep the stick in the box until the Rollback image's lifetime is over (ticket 44). **Who / where / time:** the agent runs the commands (PC and Installer), the human does Porkbun, the FritzBox and the physical boot; 60 to 120 min (the image write is 20 to 30 min of it, estimate; creating the image took 23 min on the day, the write-back was not measured). Log the cause first. **A rollback does not resolve ticket 43**: its findings go into the service tickets or the harness, and a new Cutover date follows.
 
 1. **Boot the installer stick** (human at the box): power off (a running NixOS: `sudo systemctl poweroff`), power on, F12, the **UEFI** entry of the stick, as in step 5.10. Check: `ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@$OPTI uname -a` answers (use `inst` of step 6.1).
 2. **Mount the Data disk at `/data`.** `rollback-image status` mounts it (never under `/mnt`) and prints the recorded size, hash and partition table. Check: it prints the image path and the raw `sha256` noted in step 6.3.
@@ -764,8 +774,8 @@ Going ahead (a clean step 13 and the human's "verified") **starts the Rollback i
    ssh root@$OPTI 'TRRNT=/data/trrnt STATE_TR=/data/state/transmission SAVE=/data/cutover/trrnt-watch.orig bash -s -- back' < machines/optiplex/services/transmission/restore.sh
    ```
    Check: `stat -c '%u:%g' /data/trrnt` is `169:169`; yannik's `watch/` has its original owner and mode.
-5. **Public DNS** (human, Porkbun, **unconditionally, not only "if the DNS change happened"**): the updater may have written records (once with the `*` CNAME present it even creates the apex AAAA). Look at the zone and delete the updater's four records (A and AAAA for the apex and for `*`), put the apex A back to the value noted in step 2.2 if it differs, and **then** re-create the `*` CNAME to `nnik.duckdns.org`. A CNAME cannot coexist with the `*` A and AAAA records, so the order matters. Check: `dig +short foo.nnik.dev @9.9.9.9` resolves through `nnik.duckdns.org` again (allow the 600 s TTL) and `dig +short nnik.dev AAAA` prints nothing.
-6. **FritzBox** (human): re-enable the DynDNS entry for `nnik.duckdns.org`; re-point the IPv6 port shares back to Arch's old interface ID (the coturn relay share UDP 49152-49252 can stay); set the DHCP DNS server back to `192.168.178.20` (Pi-hole); if step 16.3 already announced `fd65:c1a5:7d2b::20` as the DNSv6 server, undo that (the FritzBox announces itself, as before).
+5. **Public DNS** (human, Porkbun, **unconditionally, not only "if the DNS change happened"**): the updater may have written records. Look at the zone and delete the updater's four records (A and AAAA for the apex and for `*`), and **then** re-create the three records of step 2.2: the ALIAS `nnik.dev`, the ALIAS `www.nnik.dev` and the CNAME `*`, all to `nnik.duckdns.org`, TTL 600. A CNAME or ALIAS cannot coexist with A and AAAA records on the same name, so the order matters. Check: `dig +short foo.nnik.dev @9.9.9.9` resolves through `nnik.duckdns.org` again (allow the 600 s TTL), `dig +short nnik.dev AAAA` prints nothing, and `dig +short A nnik.dev @fortaleza.ns.porkbun.com` answers.
+6. **FritzBox** (human): re-enable the DynDNS entry for `nnik.duckdns.org`; re-point the IPv6 port shares back to Arch's old interface ID (the coturn relay share UDP 49152-49252 can stay); set the DHCP DNS server back to `192.168.178.20` (Pi-hole); if step 12 or 16.3 already announced `fd65:c1a5:7d2b::20` as the DNSv6 server, or the rebind exception for `nnik.dev` was added, undo that (the FritzBox announces itself, as before).
 7. **Boot Arch** (`inst 'sync; systemctl poweroff'`, the human pulls the stick, powers on; if the BIOS does not start Arch, F12 and the NVMe entry; the PC's known_hosts entry for `$OPTI:25560` matches, since the host key is the same). The native units start on boot; **containers do not**: `docker start` every container listed in `/mnt/tbssd/cutover/arch-running.txt` (the four Seafile containers have `restart=no` and stay down after **any** reboot of Arch, and containers stopped by hand with `unless-stopped` stay stopped), the runners included; start the native units of that list that are down. Start the bridges after Synapse, never both bridge sets at once. If the UEFI boot entry does not boot Arch (the install changed it), Arch's GRUB also lives in the fallback path `/boot/EFI/boot` on the ESP (ticket 47 saw `/boot/EFI/{Dell,GRUB,boot}`): pick it in the BIOS boot menu, or fix the entry with `efibootmgr` from the stick. Not rehearsed.
 8. **Optionally restore the pre-prune Gitea dump** (human decides): stop `gitea`, then `docker exec -i gitea-db-1 pg_restore -U gitea -d gitea --clean --if-exists < /mnt/tbssd/cutover/gitea-pre-prune.dump`, start `gitea`. It brings back the 31 accounts, their tokens and SSH keys and the Actions secrets; the blobs of the two deleted packages are gone for good (retired). Not rehearsed.
 9. **Tell users what is lost:** Matrix messages, Vaultwarden items, Paperless documents and Seafile changes made after step 11.2. A WhatsApp re-login may be needed if the NixOS bridges advanced their sessions (Telegram too).
@@ -778,13 +788,13 @@ Going ahead (a clean step 13 and the human's "verified") **starts the Rollback i
 Listed here so the runbook is complete. The first three can run in parallel.
 
 1. **battle-tracker push webhook** (`PENDING 39B`): needs the new Gitea. Human, Gitea UI, 5 min, `AItopia/battle-tracker`, Settings, Webhooks: a Gitea webhook to the loopback receiver `http://127.0.0.1:<port>/...` (port and path in `machines/optiplex/services/battle-tracker.nix` once it exists), branch filter `main`. The webhook allow-list is `loopback` only. Check: a push to `main` starts `battle-tracker-deploy.service` (`journalctl -u battle-tracker-deploy`). Until it exists the hourly timer covers deploys.
-2. **Runner tokens** (agent for the commands, human for the UI; PC and NixOS Optiplex; 30 min plus the first job): on the Optiplex `sudo optiplex-gitea actions generate-runner-token --scope aitopia` (the trusted token) and `sudo optiplex-gitea actions generate-runner-token` (the untrusted, instance-wide one). On the PC, build `secrets/optiplex/gitea-runners.yaml` (keys `trusted_token`, `untrusted_token`) from stdin without clear text on disk, encrypted to `yannik` and `optiplex` (the recipe is in ticket 33's Answer), `git add` and commit it, deploy (`nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo`). Check: both runners online in the Gitea admin UI: `runner-trusted` (org `aitopia`, labels `ubuntu-latest`, `ubuntu-24.04`) and `runner-untrusted` (instance, labels `shared`, `shared-24.04`); `systemctl status microvm@runner-trusted microvm@runner-untrusted`; the weekly wipe timer `gitea-runner-untrusted-wipe.timer` exists. **Because the VM test was removed:** run a job on each runner and check the registration, the labels, job routing (an `aitopia` job on the trusted VM, a `shared` job on the untrusted one) and the firewall from inside a job (the internet and `git.nnik.dev` work; the router, a LAN host, the host's 25580 and 25560 and `transmission.opti.plex` do not). Then **delete the ghost runner rows 1 to 17** in the admin UI.
-3. **FritzBox** (human, FritzBox UI and a phone on mobile data, 15 min): re-check from outside over IPv6 that 443, 8448 and 51413 are reachable; confirm UDP 49152-49252 and TCP+UDP on 3478 and 51413. **After verification:** set the DHCP DNS server back to `192.168.178.20` (blocky) and announce `fd65:c1a5:7d2b::20` as the **DNSv6 server** (Home Network, Network, Network Settings, IPv6; today the FritzBox announces itself). Check: a LAN client resolves through blocky (ad domains blocked, `opti.plex` names resolve), on IPv4 and IPv6. The step-4.2 change is undone here.
+2. **Runner tokens** (agent for the commands, human for the UI; PC and NixOS Optiplex; 30 min plus the first job): on the Optiplex `sudo optiplex-gitea actions generate-runner-token --scope aitopia` (the trusted token) and `sudo optiplex-gitea actions generate-runner-token` (the untrusted, instance-wide one). On the PC, build `secrets/optiplex/gitea-runners.yaml` (keys `trusted_token`, `untrusted_token`) from stdin without clear text on disk, encrypted to `yannik` and `optiplex` (the recipe is in ticket 33's Answer), `git add` and commit it, deploy (`NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo`). Check: both runners online in the Gitea admin UI: `runner-trusted` (org `aitopia`, labels `ubuntu-latest`, `ubuntu-24.04`) and `runner-untrusted` (instance, labels `shared`, `shared-24.04`); `systemctl status microvm@runner-trusted microvm@runner-untrusted`; the weekly wipe timer `gitea-runner-untrusted-wipe.timer` exists. **Because the VM test was removed:** run a job on each runner and check the registration, the labels, job routing (an `aitopia` job on the trusted VM, a `shared` job on the untrusted one) and the firewall from inside a job (the internet and `git.nnik.dev` work; the router, a LAN host, the host's 25580 and 25560 and `transmission.opti.plex` do not). Then **delete the ghost runner rows 1 to 17**: the 17 old rows (ids 1 to 17) cannot be deleted in the Gitea UI of this version soft-delete them in the database exactly as Gitea does, in one transaction: `sudo -u postgres psql -d gitea -c "update action_runner set deleted = extract(epoch from now())::bigint where id between 1 and 17 and deleted is null"` (only the ids of rows that are offline; the new runners have higher ids; undo: `set deleted = null`; the historical `action_task` rows keep their runner ids).
+3. **FritzBox** (human, FritzBox UI and a phone on mobile data, 15 min): re-check from outside over IPv6 that 443, 8448 and 51413 are reachable; confirm UDP 49152-49252 and TCP+UDP on 3478 and 51413. The DNS part was already done at step 12 (the rebind protection blocks `*.nnik.dev` for LAN clients once the AAAA records exist); if it was not, set the DHCP DNS server back to `192.168.178.20` (blocky) and announce `fd65:c1a5:7d2b::20` as the **DNSv6 server** (Home Network, Network, Network Settings, IPv6; before that the FritzBox announces itself). Check: a LAN client resolves through blocky (ad domains blocked, `opti.plex` and `*.nnik.dev` names resolve), on IPv4 and IPv6. The step-4.2 change is undone here.
 4. **Credentials** (human, Gitea UI and the repositories' settings, 1 to 2 h): recreate the accounts that may use Actions and the agent pipeline accounts (`bt-*`, `factory-*`, `mdc-*`, `demo-*`, `bt-registry`), or repoint the pipeline at `Yannik`; create a registry token and set `REGISTRY_USER` and `REGISTRY_TOKEN` as Actions secrets; re-enter `BT_SYNC_BASE_URL` only if a workflow still needs it (`PORTAINER_WEBHOOK_URL` is obsolete). Then rerun `factory` `ci.yml` and one `build-flutter-ci` run on the trusted VM until both are green (`build-flutter-ci` starts its own `dockerd &`, which clashes with the socket the runner mounts: it needs its own `--host=unix://...` socket). Check: a `build-flutter-ci` push to the registry succeeds.
 5. **D&D library import** (human and agent, NixOS Optiplex; the order is fixed; it takes hours of wall time, not agent time): (1) create an empty Seafile library; (2) add restic excludes for its `/state/seafile/seafile-data/storage/{blocks,fs,commits}/<library-id>` to `excludes.seafile` in `machines/optiplex/services/restic.nix` and **deploy before the first byte is imported**; (3) import (for example `seaf-cli` on the Optiplex); (4) check the count (13,167 files) and the size (about 168 GB); (5) delete `/mnt/tbssd/cloud`. Check: the next nightly snapshot did not grow by about 168 GB.
 6. **Remove the `/movies` source on the Shield** (`192.168.178.38`), human, 5 min. It keeps mounting `/mnt/tbssd/trrnt` read-only.
 7. **Seafile admin password** (also in 13.6): not the old 4-digit `INIT_` value, no `me@example.com`.
-8. **First nightly Backup** (the next morning, agent, PC and NixOS Optiplex, 10 min): `restic snapshots` shows a snapshot from the NixOS job in the bucket **and** in `/mnt/tbssd/restic-local`, the new objects show "One Zone", and the snapshot lists the host keys and the initrd key: `restic ls latest | grep -E 'ssh_host_(ed25519|rsa)_key|secrets/initrd'`. Only then **shred the PC's tmpfs copies**: `shred -u $X/secret.key $X/extra/etc/ssh/ssh_host_*_key $X/extra/etc/secrets/initrd/ssh_host_ed25519_key; rm -rf "$X"` (the tmpfs also vanishes at reboot). **Do not** shred `$HK` (`~/.local/share/optiplex-hostkeys`): a retry or a rollback-and-retry needs it. Ticket 44 shreds it after the Rollback image's lifetime (its note has the command and the `find` that proves nothing is left).
+8. **First nightly Backup** (the next morning, agent, PC and NixOS Optiplex, 10 min): `restic snapshots` shows a snapshot from the NixOS job in the bucket **and** in `/mnt/tbssd/restic-local`, the new objects show "One Zone", and the snapshot lists the host keys and the initrd key: `restic ls latest | grep -E 'ssh_host_(ed25519|rsa)_key|secrets/initrd'`. Only then **shred the PC's tmpfs copies**: `shred -u $X/secret.key $X/extra/etc/ssh/ssh_host_*_key $X/extra/etc/secrets/initrd/ssh_host_ed25519_key; rm -rf "$X"` (the tmpfs also vanishes at reboot). **Retention:** the nightly job keeps one snapshot per day, so its first run prunes the final `arch-gate` snapshots of the same day (step 5.2): tag-protect or copy the final gate snapshot before that run if it must survive. **Do not** shred `$HK` (`~/.local/share/optiplex-hostkeys`): a retry or a rollback-and-retry needs it. Ticket 44 shreds it after the Rollback image's lifetime (its note has the command and the `find` that proves nothing is left).
 9. **Phone** (human, 15 min): the ntfy app (server `https://ntfy.nnik.dev`, topic `optiplex`, user `yannik`, password in Vaultwarden) and the open-source probe app with the probe list of `machines/optiplex/monitoring-probes.md`. **Un-pause the external probes** that step 4.2 paused (they are the host-down alert; a power cut means the box waits for `unlock-optiplex.sh`).
 10. **Seafile and the other real-client checks** that 13 left open, the `http:` YAML Repair of Home Assistant (if it shows up), and the DNS TTLs: the old plan to raise TTLs back is void (they were never lowered; Porkbun's minimum is 600 s).
 11. **Close-out** (agent, PC, 10 min): write the ticket 43 Answer, set it resolved, add the line to the map's "Decisions so far", **record the verification date** for ticket 44. Delete nothing of the Rollback image or `/mnt/tbssd/docker` (ticket 44).
@@ -817,24 +827,25 @@ Not copied, on purpose: every Retired service (elabFTW, Portainer, Pi-hole, the 
 
 ## 18. Timing table
 
-The window is **about 3 to 4.75 h** if nothing goes wrong; book 5 h. "Measured" rows are from the real-State rehearsal on the PC (Ryzen 9 7900X, 4 vCPU and 7 GB for the guest, NVMe image); the Optiplex (i5-10500T, 15 GB, SATA Data disk) is slower. Estimates from the first draft of the ticket are marked as such.
+The window is **about 3 to 4.75 h** if nothing goes wrong; book 5 h. **Measured on the day (2026-11-15): about 3 h from "go" to "verified".** Rows marked "measured on the day" are from that run; other "measured" rows are from the real-State rehearsal on the PC (Ryzen 9 7900X, 4 vCPU and 7 GB for the guest, NVMe image); the Optiplex (i5-10500T, 15 GB, SATA Data disk) is slower. Estimates from the first draft of the ticket are marked as such.
 
 | Step | First estimate | Now | Basis |
 |---|---|---|---|
 | 4.2 to 4.7 FritzBox DNS, version and secret checks, Gitea pre-dump steps | 15 min | 20 to 30 min | estimate (31 accounts, 4 UI steps) |
 | 4.8 Stop every consumer | (in the above) | 5 min | estimate |
-| 5.2 Final gate run: dumps + SQLite copies + restic (local, then bucket) | dumps 5 min, restic at most 30 min | 10 to 30 min | Synapse dump 136 s on Arch (measured, ticket 10); restic is incremental, the bulk went up in earlier runs |
-| 5.3 to 5.5 Counts, stop DB servers, delta sync | 10 min | 10 to 15 min | estimate (the downtime rows are about 250 MB) |
+| 5.2 Final gate run: dumps + SQLite copies + restic (local, then bucket) | dumps 5 min, restic at most 30 min | **7 min** | **measured on the day** (08:34:58 to 08:41:49); Synapse dump 136 s on Arch (ticket 10) |
+| 5.3 to 5.5 Counts, stop DB servers, delta sync | 10 min | 10 to 15 min | estimate (the downtime rows are about 250 MB); `sync-state.sh --final` alone **about 1 min, measured on the day** |
 | 5.8 to 5.10 Pi-hole, shutdown, human boots the stick (BIOS menu) | "shutdown + USB boot 5 min" | 5 to 10 min | estimate; first boot of the stick on this box |
-| 6 Rollback image + verify | 20 to 30 min | 20 to 30 min | estimate; not measured (the rehearsal used a 64 GB sparse disk); `rollback-image.sh` prints the real time |
-| 7 and 8 Pre-install checks + install (disko, closure push from the PC), 8.1 power-off and stick out | install 10 to 20 min | 10 to 20 min | closure push 175 s in the VM rehearsal (offline flags); the rest estimate |
-| 9 Unlock + restoreMode checks | 5 min | 5 min | estimate |
-| 10.1 to 10.8 Restore: **database restore** | **15 to 30 min** | **PC: 102 s total, Synapse 87 s.** Plan 2 to 10 min on the Optiplex; record the real figure here | **measured on the PC (ticket 48)**; the old figure was wrong |
+| 6 Rollback image + verify | 20 to 30 min | **41 min** | **measured on the day**: create 1404 s (99 GB on disk), verify 1076 s |
+| 7 and 8 Pre-install checks + install (disko, closure push from the PC), 8.1 power-off and stick out | install 10 to 20 min | install **under 4 min** | **measured on the day** (nixos-anywhere 10:23:38 to 10:27:18); closure push 175 s in the VM rehearsal; the rest estimate |
+| 9 Unlock + restoreMode checks | 5 min | 5 min | estimate; cold reboot plus unlock about 2 min (measured on the day) |
+| 10.1 to 10.8 Restore: **database restore** | **15 to 30 min** | **Optiplex: 181 s total, Synapse 163 s** (PC rehearsal: 102 s, Synapse 87 s) | **measured on the day**; the old figure was wrong |
 | 10.3 to 10.8 Restore: Gitea copy, `seafile-prepare-state`, transmission chown, counts | (in the above) | 5 to 15 min | estimate |
-| 11.1 to 11.7 Normal deploy + first starts + healthchecks step | 15 to 30 min | 15 to 30 min | deploy copy is an estimate; **PC: every service up within 25 s**, Synapse first start 8.9 s, Gitea migrations about 1 s, Paperless about 12 s |
+| 11.1 to 11.7 Normal deploy + first starts + healthchecks step | 15 to 30 min | first deploy **about 4 min**; the rest 15 to 30 min | deploy measured on the day; **PC rehearsal: every service up within 25 s**, Synapse first start 8.9 s, Gitea migrations about 1 s, Paperless about 12 s |
 | 12 DNS and FritzBox | 10 min | 10 to 20 min | estimate |
 | 13 Verification | 45 to 60 min | 45 to 60 min | estimate (Seafile and the bridges need real clients) |
-| **Total** | **3.5 to 4.5 h** | **about 3 to 4.75 h** | sum of the ranges above |
+| 13.10 First Backups from NixOS (manual run) | - | bucket 10.6 min, local 13.3 min | measured on the day |
+| **Total** | **3.5 to 4.5 h** | **about 3 h** from "go" to "verified" | measured on the day (the ranges above sum to 3 to 4.75 h) |
 
 Time box for the rollback decision: **24 h after Arch stops**, not part of the window.
 
