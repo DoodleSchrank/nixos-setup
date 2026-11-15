@@ -255,7 +255,7 @@ dig +short A nnik.dev @fortaleza.ns.porkbun.com              # expect: nothing
 
 **11.2, 11.3** PC: deploy, then watch.
 ```sh
-NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+nix run nixpkgs#nixos-rebuild -- switch --flake . --target-host optiplex --sudo
 # exit 4 ('failed (status 4)') is fine if only healthchecks-lan-probes, healthchecks-units-ok (and ddns-porkbun before 11.1) are red; check readlink /run/current-system
 ssh optiplex 'journalctl -fu matrix-synapse'      # also: gitea, podman-seafile, paperless-scheduler, mautrix-whatsapp, mautrix-telegram
 ssh optiplex 'curl -s http://127.0.0.1:8008/_matrix/key/v2/server' | jq -r '.verify_keys | keys[]'      # expect: the key ID of 4.5 (jq on the PC)
@@ -309,7 +309,7 @@ expect: both succeed; new bucket objects show "One Zone".
 ssh optiplex 'sudo optiplex-gitea actions generate-runner-token --scope aitopia'     # trusted_token
 ssh optiplex 'sudo optiplex-gitea actions generate-runner-token'                     # untrusted_token
 # PC: build secrets/optiplex/gitea-runners.yaml from stdin (ticket 33's recipe), git add + commit, then:
-NIX_SSHOPTS="-o StrictHostKeyChecking=accept-new" nix run nixpkgs#nixos-rebuild -- switch --flake .#optiplex --build-host localhost --target-host optiplex --sudo
+nix run nixpkgs#nixos-rebuild -- switch --flake . --target-host optiplex --sudo
 ```
 Then the ghost runner rows 1 to 17 (the Gitea UI of this version offers no delete for them, they sit at instance, repository and organisation scope): soft-delete them in the database exactly as Gitea does, in one transaction: `sudo -u postgres psql -d gitea -c "update action_runner set deleted = extract(epoch from now())::bigint where id between 1 and 17 and deleted is null"` (only the ids of rows that are offline; the new runners have higher ids; undo: `set deleted = null`; the historical `action_task` rows keep their runner ids).
 **16.3** **Human, FritzBox:** re-check DHCP DNS `192.168.178.20` and DNSv6 server `fd65:c1a5:7d2b::20` (already done at 12). **16.4** credentials and the registry token (Gitea UI). **16.5** D&D import (restic excludes first). **16.6** `/movies` off the Shield. **16.9** phone: ntfy app and probes, un-pause them.
