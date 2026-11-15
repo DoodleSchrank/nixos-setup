@@ -12,6 +12,10 @@ Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-
 
 Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+## Working agreements
+
+- **Every change is made in a git worktree**, never in the main checkout: code, docs, ADRs, `GLOSSARY.md` and issues under `.scratch/` alike. Enter a worktree before the first edit; a subagent that changes files gets its own worktree. Only read-only investigation stays in the main checkout. Commit inside the worktree; never push to `master`.
+
 ## Secrets and external infrastructure
 
 - **Secrets**: adding, editing or re-encrypting a sops file, changing age recipients, or recovering a lost key → `secrets/README.md`.
